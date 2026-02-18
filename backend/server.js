@@ -47,22 +47,35 @@ app.get("/debug/env", (req, res) => {
     });
 });
 
-// Debug endpoint - test AI directly
+// Debug endpoint - test AI directly with multiple models
 app.get("/debug/test-ai", async (req, res) => {
-    try {
-        const { GoogleGenerativeAI } = await import("@google/generative-ai");
-        const key = process.env.GEMINI_API_KEY;
-        if (!key) {
-            return res.json({ success: false, error: "GEMINI_API_KEY is not set" });
-        }
-        const genAI = new GoogleGenerativeAI(key);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        const result = await model.generateContent("Say hello in one word");
-        const text = result.response.text();
-        res.json({ success: true, response: text, model: "gemini-1.5-flash" });
-    } catch (error) {
-        res.json({ success: false, error: error.message, stack: error.stack?.substring(0, 500) });
+    const { GoogleGenerativeAI } = await import("@google/generative-ai");
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) {
+        return res.json({ success: false, error: "GEMINI_API_KEY is not set" });
     }
+    const genAI = new GoogleGenerativeAI(key);
+    const modelsToTest = [
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-latest",
+        "gemini-1.5-pro",
+        "gemini-1.0-pro",
+        "gemini-pro",
+    ];
+    const results = [];
+    for (const modelName of modelsToTest) {
+        try {
+            const model = genAI.getGenerativeModel({ model: modelName });
+            const result = await model.generateContent("Say hi");
+            const text = result.response.text();
+            results.push({ model: modelName, success: true, response: text.substring(0, 50) });
+        } catch (error) {
+            results.push({ model: modelName, success: false, error: error.message?.substring(0, 100) });
+        }
+    }
+    res.json({ results });
 });
 
 // ─── Resume Routes ───────────────────────────────────────────
