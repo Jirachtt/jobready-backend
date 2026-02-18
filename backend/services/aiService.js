@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const MODELS = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.0-pro"];
+const MODELS = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-2.5-flash"];
 
 function getModel(modelName) {
     return genAI.getGenerativeModel({ model: modelName });
@@ -12,21 +12,25 @@ function getModel(modelName) {
 
 function cleanJsonResponse(text) {
     let cleaned = text.trim();
-    if (cleaned.startsWith("```")) {
-        cleaned = cleaned.split("\n").slice(1).join("\n");
-        if (cleaned.endsWith("```")) {
-            cleaned = cleaned.slice(0, -3);
-        }
-        cleaned = cleaned.trim();
+    // Remove markdown code blocks (```json ... ``` or ``` ... ```)
+    const codeBlockMatch = cleaned.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
+    if (codeBlockMatch) {
+        cleaned = codeBlockMatch[1].trim();
     }
-    return JSON.parse(cleaned);
+    try {
+        return JSON.parse(cleaned);
+    } catch (e) {
+        console.error("[AI] JSON parse failed. Raw response (first 500 chars):", cleaned.substring(0, 500));
+        throw new Error(`JSON parse failed: ${e.message}`);
+    }
 }
 
 async function callWithRetry(prompt) {
     if (!process.env.GEMINI_API_KEY) {
         console.error("[AI] ❌ GEMINI_API_KEY is missing in environment variables!");
-        return null; // Force fallback
+        return null;
     }
+    console.log(`[AI] API Key present: ${process.env.GEMINI_API_KEY.substring(0, 8)}...`);
 
     for (const modelName of MODELS) {
         try {
@@ -34,17 +38,19 @@ async function callWithRetry(prompt) {
             const model = getModel(modelName);
             const result = await model.generateContent(prompt);
             const text = result.response.text();
-            console.log(`[AI] ✅ Success with ${modelName}`);
-            return cleanJsonResponse(text);
+            console.log(`[AI] ✅ Got response from ${modelName} (${text.length} chars)`);
+            const parsed = cleanJsonResponse(text);
+            console.log(`[AI] ✅ Successfully parsed JSON from ${modelName}`);
+            return parsed;
         } catch (error) {
             const msg = error.message || "";
+            console.error(`[AI] ❌ ${modelName} failed: ${msg.substring(0, 300)}`);
             if (error.status === 429 || msg.includes("429") || msg.includes("Resource has been exhausted")) {
                 console.warn(`[AI] 🚫 ${modelName} rate limited, trying next...`);
             } else if (msg.includes("404") || msg.includes("not found")) {
-                console.warn(`[AI] ❌ ${modelName} not available, trying next...`);
-            } else {
-                console.error(`[AI] ❌ ${modelName} error: ${msg.substring(0, 200)}`);
+                console.warn(`[AI] ❌ ${modelName} not available (404), trying next...`);
             }
+            // Continue to next model regardless of error type
         }
     }
     console.error("[AI] ⚠️ All models failed, using fallback data");
