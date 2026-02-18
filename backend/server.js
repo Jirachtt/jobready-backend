@@ -16,6 +16,10 @@ const app = express();
 const PORT = process.env.PORT || 8000;
 const upload = multer({ storage: multer.memoryStorage() });
 
+// Log API key status on startup
+const apiKey = process.env.GEMINI_API_KEY;
+console.log(`[STARTUP] GEMINI_API_KEY loaded: ${apiKey ? "YES (" + apiKey.substring(0, 8) + "...)" : "❌ NO - NOT SET!"}`);
+
 app.use(cors({
     origin: "*",
     methods: ["GET", "POST", "OPTIONS"],
@@ -30,6 +34,35 @@ app.get("/", (req, res) => {
 
 app.get("/health", (req, res) => {
     res.json({ status: "healthy" });
+});
+
+// Debug endpoint - check env
+app.get("/debug/env", (req, res) => {
+    const key = process.env.GEMINI_API_KEY;
+    res.json({
+        gemini_api_key_set: !!key,
+        gemini_api_key_length: key ? key.length : 0,
+        gemini_api_key_prefix: key ? key.substring(0, 8) + "..." : "NOT SET",
+        node_env: process.env.NODE_ENV || "not set",
+    });
+});
+
+// Debug endpoint - test AI directly
+app.get("/debug/test-ai", async (req, res) => {
+    try {
+        const { GoogleGenerativeAI } = await import("@google/generative-ai");
+        const key = process.env.GEMINI_API_KEY;
+        if (!key) {
+            return res.json({ success: false, error: "GEMINI_API_KEY is not set" });
+        }
+        const genAI = new GoogleGenerativeAI(key);
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const result = await model.generateContent("Say hello in one word");
+        const text = result.response.text();
+        res.json({ success: true, response: text, model: "gemini-1.5-flash" });
+    } catch (error) {
+        res.json({ success: false, error: error.message, stack: error.stack?.substring(0, 500) });
+    }
 });
 
 // ─── Resume Routes ───────────────────────────────────────────

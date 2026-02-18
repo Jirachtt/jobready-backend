@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const MODELS = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash-latest"];
+const MODELS = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.0-pro"];
 
 function getModel(modelName) {
     return genAI.getGenerativeModel({ model: modelName });
@@ -23,6 +23,11 @@ function cleanJsonResponse(text) {
 }
 
 async function callWithRetry(prompt) {
+    if (!process.env.GEMINI_API_KEY) {
+        console.error("[AI] ❌ GEMINI_API_KEY is missing in environment variables!");
+        return null; // Force fallback
+    }
+
     for (const modelName of MODELS) {
         try {
             console.log(`[AI] Trying ${modelName}...`);
@@ -34,15 +39,15 @@ async function callWithRetry(prompt) {
         } catch (error) {
             const msg = error.message || "";
             if (error.status === 429 || msg.includes("429") || msg.includes("Resource has been exhausted")) {
-                console.log(`[AI] 🚫 ${modelName} rate limited, trying next...`);
+                console.warn(`[AI] 🚫 ${modelName} rate limited, trying next...`);
             } else if (msg.includes("404") || msg.includes("not found")) {
-                console.log(`[AI] ❌ ${modelName} not available, trying next...`);
+                console.warn(`[AI] ❌ ${modelName} not available, trying next...`);
             } else {
-                console.log(`[AI] ❌ ${modelName} error: ${msg.substring(0, 100)}`);
+                console.error(`[AI] ❌ ${modelName} error: ${msg.substring(0, 200)}`);
             }
         }
     }
-    console.log("[AI] ⚠️ All models failed, using fallback data");
+    console.error("[AI] ⚠️ All models failed, using fallback data");
     return null;
 }
 
