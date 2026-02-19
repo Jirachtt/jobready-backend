@@ -10,6 +10,7 @@ import {
     ArrowRight,
     AlertCircle,
     UserCheck,
+    ChevronRight,
 } from "lucide-react";
 import { getQuestions, evaluateAnswer } from "../services/api";
 
@@ -33,6 +34,7 @@ export default function InterviewPage() {
     const [feedback, setFeedback] = useState(null);
     const [answers, setAnswers] = useState([]);
     const [finished, setFinished] = useState(false);
+    const [waitingForNext, setWaitingForNext] = useState(false);
 
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -52,6 +54,8 @@ export default function InterviewPage() {
         }
         setLoading(true);
         setStarted(true);
+        sessionStorage.removeItem("dashboardSummary");
+        sessionStorage.removeItem("interviewAnswers");
         setMessages([
             {
                 role: "ai",
@@ -122,36 +126,7 @@ export default function InterviewPage() {
             const updatedAnswers = [...answers, newAnswer];
             setAnswers(updatedAnswers);
 
-            const nextQ = currentQ + 1;
-            if (nextQ < questions.length) {
-                setCurrentQ(nextQ);
-                setTimeout(() => {
-                    setMessages((prev) => [
-                        ...prev,
-                        {
-                            role: "ai",
-                            text: `**คำถามที่ ${nextQ + 1}** [${questions[nextQ]?.category}] (${questions[nextQ]?.difficulty})\n\n${questions[nextQ]?.question}\n\n_${questions[nextQ]?.question_th || ""}_`,
-                        },
-                    ]);
-                    setFeedback(null);
-                }, 3000);
-            } else {
-                setFinished(true);
-                sessionStorage.setItem(
-                    "interviewAnswers",
-                    JSON.stringify(updatedAnswers)
-                );
-                setTimeout(() => {
-                    setMessages((prev) => [
-                        ...prev,
-                        {
-                            role: "ai",
-                            text: "🎉 ครบทุกคำถามแล้วครับ! คุณทำได้ดีมาก กดปุ่มด้านล่างเพื่อดูสรุปผลของคุณได้เลย",
-                        },
-                    ]);
-                    setFeedback(null);
-                }, 3000);
-            }
+            setWaitingForNext(true);
         } catch (err) {
             // Retry once silently
             try {
@@ -162,45 +137,44 @@ export default function InterviewPage() {
                 const newAnswer = { question, answer, score: evalResult.score };
                 const updatedAnswers = [...answers, newAnswer];
                 setAnswers(updatedAnswers);
-                const nextQ = currentQ + 1;
-                if (nextQ < questions.length) {
-                    setCurrentQ(nextQ);
-                    setTimeout(() => {
-                        setMessages((prev) => [...prev, { role: "ai", text: `**คำถามที่ ${nextQ + 1}** [${questions[nextQ]?.category}] (${questions[nextQ]?.difficulty})\n\n${questions[nextQ]?.question}\n\n_${questions[nextQ]?.question_th || ""}_` }]);
-                        setFeedback(null);
-                    }, 3000);
-                } else {
-                    setFinished(true);
-                    sessionStorage.setItem("interviewAnswers", JSON.stringify(updatedAnswers));
-                    setTimeout(() => {
-                        setMessages((prev) => [...prev, { role: "ai", text: "🎉 ครบทุกคำถามแล้วครับ! คุณทำได้ดีมาก กดปุ่มด้านล่างเพื่อดูสรุปผลของคุณได้เลย" }]);
-                        setFeedback(null);
-                    }, 3000);
-                }
+                setWaitingForNext(true);
             } catch (retryErr) {
                 // Even retry failed — just show encouraging message and move on
                 setFeedback({ score: 6, feedback: "คำตอบของคุณดี ลองเพิ่มรายละเอียดและตัวอย่างจริงเพื่อเพิ่มคะแนน", tone_analysis: "น้ำเสียงดี มีความมั่นใจ", coach_tip: "ลองใช้ STAR Method ในการตอบ", improved_answer_hint: "เพิ่มตัวเลขและผลลัพธ์ที่วัดได้" });
                 const newAnswer = { question: questions[currentQ]?.question, answer, score: 6 };
                 const updatedAnswers = [...answers, newAnswer];
                 setAnswers(updatedAnswers);
-                const nextQ = currentQ + 1;
-                if (nextQ < questions.length) {
-                    setCurrentQ(nextQ);
-                    setTimeout(() => {
-                        setMessages((prev) => [...prev, { role: "ai", text: `**คำถามที่ ${nextQ + 1}** [${questions[nextQ]?.category}] (${questions[nextQ]?.difficulty})\n\n${questions[nextQ]?.question}\n\n_${questions[nextQ]?.question_th || ""}_` }]);
-                        setFeedback(null);
-                    }, 3000);
-                } else {
-                    setFinished(true);
-                    sessionStorage.setItem("interviewAnswers", JSON.stringify(updatedAnswers));
-                    setTimeout(() => {
-                        setMessages((prev) => [...prev, { role: "ai", text: "🎉 ครบทุกคำถามแล้วครับ! กดปุ่มด้านล่างเพื่อดูสรุปผล" }]);
-                        setFeedback(null);
-                    }, 3000);
-                }
+                setWaitingForNext(true);
             }
         }
         setLoading(false);
+    };
+
+    const handleNextQuestion = () => {
+        setWaitingForNext(false);
+        setFeedback(null);
+        const nextQ = currentQ + 1;
+        if (nextQ < questions.length) {
+            setCurrentQ(nextQ);
+            setMessages((prev) => [
+                ...prev,
+                {
+                    role: "ai",
+                    text: `**คำถามที่ ${nextQ + 1}** [${questions[nextQ]?.category}] (${questions[nextQ]?.difficulty})\n\n${questions[nextQ]?.question}\n\n_${questions[nextQ]?.question_th || ""}_`,
+                },
+            ]);
+        } else {
+            setFinished(true);
+            sessionStorage.setItem("interviewAnswers", JSON.stringify(answers));
+            setMessages((prev) => [
+                ...prev,
+                {
+                    role: "ai",
+                    text: "🎉 ครบทุกคำถามแล้วครับ! คุณทำได้ดีมาก กดปุ่มด้านล่างเพื่อดูสรุปผลของคุณได้เลย",
+                },
+            ]);
+        }
+        setTimeout(() => inputRef.current?.focus(), 100);
     };
 
     const handleKeyDown = (e) => {
@@ -404,6 +378,24 @@ export default function InterviewPage() {
                                             ⚠️ ผลประเมินเป็นข้อมูลตัวอย่าง (ระบบ AI ไม่พร้อมใช้งานชั่วคราว)
                                         </div>
                                     )}
+                                    {!finished && (
+                                        <button
+                                            className="next-question-btn"
+                                            onClick={handleNextQuestion}
+                                        >
+                                            {currentQ + 1 < questions.length ? (
+                                                <>
+                                                    คำถามถัดไป
+                                                    <ChevronRight size={18} />
+                                                </>
+                                            ) : (
+                                                <>
+                                                    ดูสรุปผล
+                                                    <ArrowRight size={18} />
+                                                </>
+                                            )}
+                                        </button>
+                                    )}
                                 </div>
                             )}
 
@@ -435,12 +427,12 @@ export default function InterviewPage() {
                                     value={input}
                                     onChange={(e) => setInput(e.target.value)}
                                     onKeyDown={handleKeyDown}
-                                    disabled={loading || questions.length === 0}
+                                    disabled={loading || questions.length === 0 || waitingForNext}
                                 />
                                 <button
                                     className="btn btn-primary"
                                     onClick={handleSend}
-                                    disabled={loading || !input.trim()}
+                                    disabled={loading || !input.trim() || waitingForNext}
                                 >
                                     <Send size={18} />
                                 </button>

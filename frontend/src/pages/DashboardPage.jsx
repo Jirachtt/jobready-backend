@@ -30,6 +30,7 @@ export default function DashboardPage() {
 
         const answersRaw = sessionStorage.getItem("interviewAnswers");
         const resumeRaw = sessionStorage.getItem("resumeAnalysis");
+        const cachedSummary = sessionStorage.getItem("dashboardSummary");
 
         if (!answersRaw) {
             setError("ยังไม่มีข้อมูลการสัมภาษณ์ กรุณาทำ Mock Interview ก่อน");
@@ -41,10 +42,18 @@ export default function DashboardPage() {
         const resume = resumeRaw ? JSON.parse(resumeRaw) : null;
         setResumeAnalysis(resume);
 
+        // Use cached summary if available
+        if (cachedSummary) {
+            setSummary(JSON.parse(cachedSummary));
+            setLoading(false);
+            return;
+        }
+
         for (let attempt = 0; attempt < 2; attempt++) {
             try {
                 const result = await getSummary(answers, resume);
                 setSummary(result);
+                sessionStorage.setItem("dashboardSummary", JSON.stringify(result));
                 setLoading(false);
                 return;
             } catch (err) {

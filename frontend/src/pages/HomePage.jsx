@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
 import {
     FileSearch,
-    MessageSquareText,
     Brain,
     Target,
     Zap,
@@ -33,10 +32,6 @@ export default function HomePage() {
                         <Link to="/resume" className="btn btn-primary btn-lg">
                             <FileSearch size={20} />
                             เริ่มวิเคราะห์ Resume
-                        </Link>
-                        <Link to="/interview" className="btn btn-secondary btn-lg">
-                            <MessageSquareText size={20} />
-                            เริ่มฝึกสัมภาษณ์
                         </Link>
                     </div>
                 </div>
