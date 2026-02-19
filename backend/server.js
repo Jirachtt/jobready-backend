@@ -26,7 +26,7 @@ app.use(helmet({
 
 // CORS — allow only frontend origins
 const ALLOWED_ORIGINS = [
-    "https://jobready-frontend-044r.onrender.com",
+    "https://jobready-frontend-04fr.onrender.com",
     "https://jobready-frontend.onrender.com",
     "http://localhost:5173",
     "http://localhost:3000",

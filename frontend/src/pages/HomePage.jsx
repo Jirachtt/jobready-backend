@@ -5,6 +5,7 @@ import {
     Target,
     Zap,
     ArrowRight,
+    MessageSquareText,
 } from "lucide-react";
 
 export default function HomePage() {
