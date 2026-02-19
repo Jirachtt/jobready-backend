@@ -9,6 +9,7 @@ import {
     Lightbulb,
     ArrowRight,
     AlertCircle,
+    UserCheck,
 } from "lucide-react";
 import { getQuestions, evaluateAnswer } from "../services/api";
 
@@ -54,7 +55,7 @@ export default function InterviewPage() {
         setMessages([
             {
                 role: "ai",
-                text: "🤖 สวัสดีครับ! ผมคือ AI Interview Coach ของ JobReady วันนี้จะมาฝึกสัมภาษณ์กับคุณครับ กำลังเตรียมคำถาม...",
+                text: "สวัสดีค่ะ! ดิฉันคือ HR Interview Coach ของ JobReady วันนี้จะมาฝึกสัมภาษณ์กับคุณค่ะ กำลังเตรียมคำถาม...",
             },
         ]);
 
@@ -79,7 +80,7 @@ export default function InterviewPage() {
                 },
                 {
                     role: "ai",
-                    text: `**คำถามที่ 1** [${qs[0]?.category}] (${qs[0]?.difficulty})\n\n${qs[0]?.question}`,
+                    text: `**คำถามที่ 1** [${qs[0]?.category}] (${qs[0]?.difficulty})\n\n${qs[0]?.question}\n\n_${qs[0]?.question_th || ""}_`,
                 },
             ]);
         } else {
@@ -129,7 +130,7 @@ export default function InterviewPage() {
                         ...prev,
                         {
                             role: "ai",
-                            text: `**คำถามที่ ${nextQ + 1}** [${questions[nextQ]?.category}] (${questions[nextQ]?.difficulty})\n\n${questions[nextQ]?.question}`,
+                            text: `**คำถามที่ ${nextQ + 1}** [${questions[nextQ]?.category}] (${questions[nextQ]?.difficulty})\n\n${questions[nextQ]?.question}\n\n_${questions[nextQ]?.question_th || ""}_`,
                         },
                     ]);
                     setFeedback(null);
@@ -165,7 +166,7 @@ export default function InterviewPage() {
                 if (nextQ < questions.length) {
                     setCurrentQ(nextQ);
                     setTimeout(() => {
-                        setMessages((prev) => [...prev, { role: "ai", text: `**คำถามที่ ${nextQ + 1}** [${questions[nextQ]?.category}] (${questions[nextQ]?.difficulty})\n\n${questions[nextQ]?.question}` }]);
+                        setMessages((prev) => [...prev, { role: "ai", text: `**คำถามที่ ${nextQ + 1}** [${questions[nextQ]?.category}] (${questions[nextQ]?.difficulty})\n\n${questions[nextQ]?.question}\n\n_${questions[nextQ]?.question_th || ""}_` }]);
                         setFeedback(null);
                     }, 3000);
                 } else {
@@ -186,7 +187,7 @@ export default function InterviewPage() {
                 if (nextQ < questions.length) {
                     setCurrentQ(nextQ);
                     setTimeout(() => {
-                        setMessages((prev) => [...prev, { role: "ai", text: `**คำถามที่ ${nextQ + 1}** [${questions[nextQ]?.category}] (${questions[nextQ]?.difficulty})\n\n${questions[nextQ]?.question}` }]);
+                        setMessages((prev) => [...prev, { role: "ai", text: `**คำถามที่ ${nextQ + 1}** [${questions[nextQ]?.category}] (${questions[nextQ]?.difficulty})\n\n${questions[nextQ]?.question}\n\n_${questions[nextQ]?.question_th || ""}_` }]);
                         setFeedback(null);
                     }, 3000);
                 } else {
@@ -327,7 +328,7 @@ export default function InterviewPage() {
                                 >
                                     {msg.role === "ai" && (
                                         <div className="chat-avatar ai-avatar">
-                                            <Bot size={18} color="white" />
+                                            <UserCheck size={18} color="white" />
                                         </div>
                                     )}
                                     <div className="chat-bubble">
@@ -409,7 +410,7 @@ export default function InterviewPage() {
                             {loading && (
                                 <div className="chat-message ai">
                                     <div className="chat-avatar ai-avatar">
-                                        <Bot size={18} color="white" />
+                                        <UserCheck size={18} color="white" />
                                     </div>
                                     <div className="chat-bubble">
                                         <div className="loading-dots">

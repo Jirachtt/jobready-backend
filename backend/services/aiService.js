@@ -93,18 +93,18 @@ function fallbackAnalysis(resumeText, jdText) {
 
 function fallbackQuestions(mode) {
     const techQuestions = [
-        { id: 1, question: "อธิบายความแตกต่างระหว่าง Client-Side Rendering และ Server-Side Rendering ว่าแต่ละแบบเหมาะกับงานแบบไหน?", category: "Web Architecture", difficulty: "Medium" },
-        { id: 2, question: "ถ้าต้องออกแบบ REST API สำหรับระบบ E-commerce คุณจะออกแบบ Endpoint หลักๆ อย่างไร?", category: "API Design", difficulty: "Medium" },
-        { id: 3, question: "เล่าประสบการณ์การ Debug ปัญหาที่ยากที่สุดที่เคยเจอ คุณใช้วิธีไหนในการแก้ไข?", category: "Problem Solving", difficulty: "Hard" },
-        { id: 4, question: "อธิบายวิธีจัดการ State Management ใน Application ขนาดใหญ่ แนะนำ Tool หรือ Pattern อะไร?", category: "Frontend", difficulty: "Medium" },
-        { id: 5, question: "คุณมีวิธีเขียน Code ให้ Clean และ Maintainable อย่างไร? ยกตัวอย่าง Best Practice ที่คุณใช้", category: "Code Quality", difficulty: "Easy" },
+        { id: 1, question: "Explain the difference between Client-Side Rendering (CSR) and Server-Side Rendering (SSR). When would you choose one over the other?", question_th: "อธิบายความแตกต่างระหว่าง Client-Side Rendering และ Server-Side Rendering ว่าแต่ละแบบเหมาะกับงานแบบไหน?", category: "Web Architecture", difficulty: "Medium" },
+        { id: 2, question: "If you were designing a REST API for an E-commerce system, what would be the key endpoints?", question_th: "ถ้าต้องออกแบบ REST API สำหรับระบบ E-commerce คุณจะออกแบบ Endpoint หลักๆ อย่างไร?", category: "API Design", difficulty: "Medium" },
+        { id: 3, question: "Describe the most challenging bug you have encountered. How did you debug and solve it?", question_th: "เล่าประสบการณ์การ Debug ปัญหาที่ยากที่สุดที่เคยเจอ คุณใช้วิธีไหนในการแก้ไข?", category: "Problem Solving", difficulty: "Hard" },
+        { id: 4, question: "How do you manage state in a large-scale application? What tools or patterns do you recommend?", question_th: "อธิบายวิธีจัดการ State Management ใน Application ขนาดใหญ่ แนะนำ Tool หรือ Pattern อะไร?", category: "Frontend", difficulty: "Medium" },
+        { id: 5, question: "How do you ensure your code is clean and maintainable? Share some best practices you follow.", question_th: "คุณมีวิธีเขียน Code ให้ Clean และ Maintainable อย่างไร? ยกตัวอย่าง Best Practice ที่คุณใช้", category: "Code Quality", difficulty: "Easy" },
     ];
     const behavioralQuestions = [
-        { id: 1, question: "เล่าถึงสถานการณ์ที่คุณต้องทำงานภายใต้ความกดดันและ Deadline ที่จำกัด คุณจัดการอย่างไร?", category: "Pressure Management", difficulty: "Medium" },
-        { id: 2, question: "คุณเคยมีความขัดแย้งกับเพื่อนร่วมทีมไหม? แก้ไขอย่างไร?", category: "Conflict Resolution", difficulty: "Medium" },
-        { id: 3, question: "เล่าถึงโปรเจกต์ที่คุณภูมิใจที่สุด ทำไมถึงภูมิใจ?", category: "Achievement", difficulty: "Easy" },
-        { id: 4, question: "คุณ handle feedback เชิงลบอย่างไร? ยกตัวอย่างสถานการณ์จริง", category: "Growth Mindset", difficulty: "Hard" },
-        { id: 5, question: "ถ้าได้รับมอบหมายงานที่ไม่เคยทำมาก่อน คุณจะเริ่มต้นอย่างไร?", category: "Adaptability", difficulty: "Medium" },
+        { id: 1, question: "Tell me about a time you had to work under tight deadlines. How did you handle the pressure?", question_th: "เล่าถึงสถานการณ์ที่คุณต้องทำงานภายใต้ความกดดันและ Deadline ที่จำกัด คุณจัดการอย่างไร?", category: "Pressure Management", difficulty: "Medium" },
+        { id: 2, question: "Have you ever had a conflict with a team member? How did you resolve it?", question_th: "คุณเคยมีความขัดแย้งกับเพื่อนร่วมทีมไหม? แก้ไขอย่างไร?", category: "Conflict Resolution", difficulty: "Medium" },
+        { id: 3, question: "Share a project you are most proud of. Why does it stand out to you?", question_th: "เล่าถึงโปรเจกต์ที่คุณภูมิใจที่สุด ทำไมถึงภูมิใจ?", category: "Achievement", difficulty: "Easy" },
+        { id: 4, question: "How do you handle negative feedback? Give a specific example.", question_th: "คุณ handle feedback เชิงลบอย่างไร? ยกตัวอย่างสถานการณ์จริง", category: "Growth Mindset", difficulty: "Hard" },
+        { id: 5, question: "If you were assigned a task you had never done before, how would you approach it?", question_th: "ถ้าได้รับมอบหมายงานที่ไม่เคยทำมาก่อน คุณจะเริ่มต้นอย่างไร?", category: "Adaptability", difficulty: "Medium" },
     ];
     return {
         questions: mode === "technical" ? techQuestions : behavioralQuestions,
@@ -211,15 +211,16 @@ ${jdText}
 INTERVIEW MODE: ${modeDesc}
 
 Generate exactly 5 interview questions that are highly personalized based on the candidate's resume and the specific job description.
-- For Technical mode: Ask about specific technologies, frameworks, and technical scenarios relevant to both the resume and JD.
-- For Behavioral mode: Ask STAR-method questions about leadership, teamwork, conflict resolution, and situations related to the role.
+- For Technical mode: Ask about specific technologies and frameworks.
+- For Behavioral mode: Ask STAR-method questions.
 
 Return your response as JSON ONLY (no markdown, no code blocks):
 {
     "questions": [
         {
             "id": 1,
-            "question": "<question text - use Thai if JD is in Thai, otherwise English>",
+            "question": "<question text in English>",
+            "question_th": "<same question translated to Thai>",
             "category": "<category like Framework, Database, Leadership, etc.>",
             "difficulty": "<Easy/Medium/Hard>"
         }
