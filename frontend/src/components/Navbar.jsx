@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Sparkles, FileText, MessageSquare, BarChart3 } from "lucide-react";
+import { Sparkles, FileText, MessageSquare, BarChart3, Briefcase } from "lucide-react";
 
 export default function Navbar() {
     const location = useLocation();
@@ -15,7 +15,9 @@ export default function Navbar() {
         <nav className="navbar">
             <div className="navbar-inner">
                 <Link to="/" className="nav-logo">
-                    <span className="logo-icon">🚀</span>
+                    <span className="logo-icon">
+                        <Briefcase size={20} color="white" />
+                    </span>
                     <span>
                         Job<span className="gradient-text">Ready</span>
                     </span>
