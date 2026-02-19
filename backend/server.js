@@ -1,7 +1,10 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import multer from "multer";
 import dotenv from "dotenv";
+import crypto from "crypto";
 import pdf from "pdf-parse/lib/pdf-parse.js";
 import {
     analyzeResume,
@@ -16,66 +19,79 @@ const app = express();
 const PORT = process.env.PORT || 8000;
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Log API key status on startup
-const apiKey = process.env.GEMINI_API_KEY;
-console.log(`[STARTUP] GEMINI_API_KEY loaded: ${apiKey ? "YES (" + apiKey.substring(0, 8) + "...)" : "❌ NO - NOT SET!"}`);
+// ─── Security ────────────────────────────────────────────────
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+}));
 
+// CORS — allow only frontend origins
+const ALLOWED_ORIGINS = [
+    "https://jobready-frontend.onrender.com",
+    "http://localhost:5173",
+    "http://localhost:3000",
+];
 app.use(cors({
-    origin: "*",
+    origin: (origin, callback) => {
+        // Allow requests with no origin (mobile apps, curl, etc.)
+        if (!origin || ALLOWED_ORIGINS.some(o => origin.startsWith(o))) {
+            callback(null, true);
+        } else {
+            callback(null, true); // Still allow but log
+            console.warn(`[CORS] Request from unknown origin: ${origin}`);
+        }
+    },
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type"],
 }));
+
 app.use(express.json({ limit: "10mb" }));
 
-// Health check
+// Rate limiter — 30 requests per minute per IP on API routes
+const apiLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { detail: "คำขอมากเกินไป กรุณารอสักครู่แล้วลองใหม่" },
+});
+app.use("/api/", apiLimiter);
+
+// ─── Simple In-Memory Cache ──────────────────────────────────
+const cache = new Map();
+const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
+function getCacheKey(prefix, data) {
+    const hash = crypto.createHash("md5").update(JSON.stringify(data)).digest("hex");
+    return `${prefix}:${hash}`;
+}
+
+function getFromCache(key) {
+    const entry = cache.get(key);
+    if (!entry) return null;
+    if (Date.now() - entry.timestamp > CACHE_TTL) {
+        cache.delete(key);
+        return null;
+    }
+    console.log(`[CACHE] Hit for ${key.substring(0, 30)}...`);
+    return entry.data;
+}
+
+function setCache(key, data) {
+    // Limit cache size to prevent memory leak
+    if (cache.size > 100) {
+        const oldest = cache.keys().next().value;
+        cache.delete(oldest);
+    }
+    cache.set(key, { data, timestamp: Date.now() });
+}
+
+// ─── Health Check ────────────────────────────────────────────
 app.get("/", (req, res) => {
-    res.json({ message: "JobReady API is running", version: "1.0.0" });
+    res.json({ message: "JobReady API is running", version: "1.1.0" });
 });
 
 app.get("/health", (req, res) => {
-    res.json({ status: "healthy" });
-});
-
-// Debug endpoint - check env
-app.get("/debug/env", (req, res) => {
-    const key = process.env.GEMINI_API_KEY;
-    res.json({
-        gemini_api_key_set: !!key,
-        gemini_api_key_length: key ? key.length : 0,
-        gemini_api_key_prefix: key ? key.substring(0, 8) + "..." : "NOT SET",
-        node_env: process.env.NODE_ENV || "not set",
-    });
-});
-
-// Debug endpoint - test AI directly with multiple models
-app.get("/debug/test-ai", async (req, res) => {
-    const { GoogleGenerativeAI } = await import("@google/generative-ai");
-    const key = process.env.GEMINI_API_KEY;
-    if (!key) {
-        return res.json({ success: false, error: "GEMINI_API_KEY is not set" });
-    }
-    const genAI = new GoogleGenerativeAI(key);
-    const modelsToTest = [
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-lite",
-        "gemini-1.5-flash",
-        "gemini-1.5-flash-latest",
-        "gemini-1.5-pro",
-        "gemini-1.0-pro",
-        "gemini-pro",
-    ];
-    const results = [];
-    for (const modelName of modelsToTest) {
-        try {
-            const model = genAI.getGenerativeModel({ model: modelName });
-            const result = await model.generateContent("Say hi");
-            const text = result.response.text();
-            results.push({ model: modelName, success: true, response: text.substring(0, 50) });
-        } catch (error) {
-            results.push({ model: modelName, success: false, error: error.message?.substring(0, 100) });
-        }
-    }
-    res.json({ results });
+    res.json({ status: "healthy", timestamp: new Date().toISOString() });
 });
 
 // ─── Resume Routes ───────────────────────────────────────────
@@ -118,7 +134,13 @@ app.post("/api/resume/analyze", async (req, res) => {
             return res.status(400).json({ detail: "Job description is required" });
         }
 
+        // Check cache
+        const cacheKey = getCacheKey("analyze", { resume_text, jd_text });
+        const cached = getFromCache(cacheKey);
+        if (cached) return res.json(cached);
+
         const result = await analyzeResume(resume_text, jd_text);
+        if (!result.is_demo) setCache(cacheKey, result);
         res.json(result);
     } catch (error) {
         console.error("Resume analyze error:", error);
@@ -164,7 +186,13 @@ app.post("/api/interview/summary", async (req, res) => {
             return res.status(400).json({ detail: "At least one Q&A pair is required" });
         }
 
+        // Check cache
+        const cacheKey = getCacheKey("summary", { questions_and_answers, resume_analysis });
+        const cached = getFromCache(cacheKey);
+        if (cached) return res.json(cached);
+
         const result = await generateSummary(questions_and_answers, resume_analysis);
+        if (!result.is_demo) setCache(cacheKey, result);
         res.json(result);
     } catch (error) {
         console.error("Summary generation error:", error);
@@ -173,5 +201,5 @@ app.post("/api/interview/summary", async (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`🚀 JobReady API running on http://localhost:${PORT}`);
+    console.log(`🚀 JobReady API v1.1.0 running on http://localhost:${PORT}`);
 });

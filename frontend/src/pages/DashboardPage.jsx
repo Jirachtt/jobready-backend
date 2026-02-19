@@ -196,18 +196,36 @@ export default function DashboardPage() {
                         <div
                             style={{
                                 marginTop: "16px",
-                                display: "inline-flex",
+                                display: "flex",
+                                flexDirection: "column",
                                 alignItems: "center",
-                                gap: "6px",
-                                padding: "4px 12px",
-                                background: "rgba(245, 158, 11, 0.1)",
-                                border: "1px solid rgba(245, 158, 11, 0.2)",
-                                borderRadius: "16px",
-                                fontSize: "12px",
-                                color: "var(--accent-orange)",
+                                gap: "8px",
                             }}
                         >
-                            ⚡ Demo Mode (Mock Data)
+                            <div
+                                style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "6px",
+                                    padding: "8px 16px",
+                                    background: "rgba(245, 158, 11, 0.1)",
+                                    border: "1px solid rgba(245, 158, 11, 0.2)",
+                                    borderRadius: "12px",
+                                    fontSize: "13px",
+                                    color: "var(--accent-orange)",
+                                }}
+                            >
+                                <AlertCircle size={14} />
+                                ⚠️ ผลสรุปเป็นข้อมูลตัวอย่าง (ระบบ AI ไม่พร้อมใช้งานชั่วคราว)
+                            </div>
+                            <button
+                                className="btn btn-secondary btn-sm"
+                                onClick={loadSummary}
+                                style={{ fontSize: "13px" }}
+                            >
+                                <RotateCcw size={14} />
+                                ลองใหม่อีกครั้ง
+                            </button>
                         </div>
                     )}
                 </div>

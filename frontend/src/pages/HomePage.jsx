@@ -17,7 +17,7 @@ export default function HomePage() {
                 <div className="hero-content">
                     <div className="hero-badge">
                         <Zap size={14} />
-                        Powered by AI — Gemini 1.5 Flash
+                        Powered by AI — Gemini 2.0 Flash
                     </div>
                     <h1 className="hero-title">
                         คู่ซ้อม<span className="gradient-text">สัมภาษณ์งาน</span>

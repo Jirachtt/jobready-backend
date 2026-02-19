@@ -13,6 +13,7 @@ import {
     Search,
     Lightbulb,
     Tag,
+    RefreshCw,
 } from "lucide-react";
 import { uploadResume, analyzeResume } from "../services/api";
 
@@ -199,6 +200,10 @@ export default function ResumePage() {
                 style={{
                     textAlign: "center",
                     margin: "32px 0",
+                    display: "flex",
+                    gap: "12px",
+                    justifyContent: "center",
+                    flexWrap: "wrap",
                 }}
             >
                 <button
@@ -218,10 +223,39 @@ export default function ResumePage() {
                         </>
                     )}
                 </button>
+                {error && (
+                    <button
+                        className="btn btn-secondary"
+                        onClick={handleAnalyze}
+                        disabled={!resumeText || !jdText.trim() || analyzing}
+                    >
+                        <RefreshCw size={16} />
+                        ลองใหม่อีกครั้ง
+                    </button>
+                )}
             </div>
 
+            {/* Shimmer Loading */}
+            {analyzing && (
+                <div className="analysis-results">
+                    <div className="shimmer-container">
+                        <div className="shimmer-circle"></div>
+                        <div className="shimmer-line" style={{ width: "60%", margin: "16px auto" }}></div>
+                        <div className="shimmer-line" style={{ width: "80%", margin: "8px auto" }}></div>
+                        <div className="shimmer-grid">
+                            <div className="shimmer-card"></div>
+                            <div className="shimmer-card"></div>
+                            <div className="shimmer-card"></div>
+                        </div>
+                        <p style={{ textAlign: "center", color: "var(--text-muted)", marginTop: "24px", fontSize: "14px" }}>
+                            🤖 AI กำลังวิเคราะห์ Resume อย่างละเอียด...
+                        </p>
+                    </div>
+                </div>
+            )}
+
             {/* Analysis Results */}
-            {analysis && (
+            {analysis && !analyzing && (
                 <div className="analysis-results">
                     {/* Score Gauge */}
                     <div className="score-gauge">
@@ -247,19 +281,37 @@ export default function ResumePage() {
                             <div
                                 style={{
                                     marginTop: "16px",
-                                    display: "inline-flex",
+                                    display: "flex",
+                                    flexDirection: "column",
                                     alignItems: "center",
-                                    gap: "6px",
-                                    padding: "4px 12px",
-                                    background: "rgba(245, 158, 11, 0.1)",
-                                    border: "1px solid rgba(245, 158, 11, 0.2)",
-                                    borderRadius: "16px",
-                                    fontSize: "12px",
-                                    color: "var(--accent-orange)",
+                                    gap: "8px",
                                 }}
                             >
-                                <AlertCircle size={14} />
-                                <span>Demo Mode (Mock Data)</span>
+                                <div
+                                    style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: "6px",
+                                        padding: "8px 16px",
+                                        background: "rgba(245, 158, 11, 0.1)",
+                                        border: "1px solid rgba(245, 158, 11, 0.2)",
+                                        borderRadius: "12px",
+                                        fontSize: "13px",
+                                        color: "var(--accent-orange)",
+                                    }}
+                                >
+                                    <AlertCircle size={14} />
+                                    ⚠️ ผลวิเคราะห์เป็นข้อมูลตัวอย่าง (ระบบ AI ไม่พร้อมใช้งานชั่วคราว)
+                                </div>
+                                <button
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={handleAnalyze}
+                                    disabled={analyzing}
+                                    style={{ fontSize: "13px" }}
+                                >
+                                    <RefreshCw size={14} />
+                                    ลองวิเคราะห์ใหม่
+                                </button>
                             </div>
                         )}
                     </div>

@@ -391,15 +391,16 @@ export default function InterviewPage() {
                                                 display: "inline-flex",
                                                 alignItems: "center",
                                                 gap: "6px",
-                                                padding: "4px 12px",
+                                                padding: "8px 16px",
                                                 background: "rgba(245, 158, 11, 0.1)",
                                                 border: "1px solid rgba(245, 158, 11, 0.2)",
-                                                borderRadius: "16px",
-                                                fontSize: "12px",
+                                                borderRadius: "12px",
+                                                fontSize: "13px",
                                                 color: "var(--accent-orange)",
                                             }}
                                         >
-                                            ⚡ Demo Mode
+                                            <AlertCircle size={14} />
+                                            ⚠️ ผลประเมินเป็นข้อมูลตัวอย่าง (ระบบ AI ไม่พร้อมใช้งานชั่วคราว)
                                         </div>
                                     )}
                                 </div>
