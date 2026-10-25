@@ -17,7 +17,7 @@ export default function HomePage() {
                 <div className="hero-content">
                     <div className="hero-badge">
                         <Zap size={14} />
-                        Powered by AI — Gemini 2.0 Flash
+                        ฝึกจากข้อความจริง • เลือกใช้ Gemini AI ได้
                     </div>
                     <h1 className="hero-title">
                         คู่ซ้อม<span className="gradient-text">สัมภาษณ์งาน</span>
@@ -27,7 +27,7 @@ export default function HomePage() {
                     <p className="hero-subtitle">
                         ฝึกตอบคำถามสัมภาษณ์งานกับ AI ที่จำลองเป็น HR มืออาชีพ
                         พร้อมวิเคราะห์ Resume ว่าแมตช์กับงานที่ต้องการแค่ไหน
-                        ช่วยให้คุณกล้าพูดและได้งานที่ฝัน
+                        ใช้ทบทวนจุดที่ควรพัฒนา พร้อมแยกผลจาก AI และเครื่องมือพื้นฐานให้ชัดเจน
                     </p>
                     <div className="hero-cta">
                         <Link to="/resume" className="btn btn-primary btn-lg">
