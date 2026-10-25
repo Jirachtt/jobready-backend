@@ -2,9 +2,23 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createAiService,analyzeLocally} from '../services/aiService.js';
 import {createApp,MAX_FILE_BYTES} from '../server.js';
+import pdfFixture from './pdfFixture.js';
 
 const resume='Demo Candidate. Built a React dashboard using JavaScript and REST API. Used Git and testing.';
 const jd='Junior React developer. JavaScript, REST API, Git, Docker and testing.';
+test('real PDF extraction works repeatedly with pooled and offset Node Buffers',async(t)=>{
+ const server=createApp({ai:createAiService({env:{}}),env:{}}).listen(0,'127.0.0.1');
+ await new Promise(resolve=>server.once('listening',resolve));
+ t.after(()=>new Promise(resolve=>server.close(resolve)));
+ const bytes=Buffer.from(pdfFixture,'base64');
+ for(let i=0;i<3;i++){
+  const pooled=Buffer.alloc(bytes.length+37);bytes.copy(pooled,37);
+  const data=new FormData();data.append('file',new Blob([pooled.subarray(37)],{type:'application/pdf'}),'synthetic.pdf');
+  const response=await fetch('http://127.0.0.1:'+server.address().port+'/api/resume/upload',{method:'POST',body:data});
+  assert.equal(response.status,200);const body=await response.json();
+  assert.equal(body.pages,1);assert.match(body.text,/React JavaScript Node.js Express SQL/);
+ }
+});
 test('keyword coverage is deterministic, grounded and distinguishes Java from JavaScript',()=>{
   assert.deepEqual(analyzeLocally(resume,jd),analyzeLocally(resume,jd));
   assert.equal(analyzeLocally('JavaScript only','Java developer').matching_score,0);
