@@ -18,7 +18,7 @@ Use Node.js 22 or later. In `backend`, run `npm ci`, copy `.env.example` to `.en
 
 Backend: root directory `backend`, build `npm ci`, start `npm start`. Set `GEMINI_API_KEY` only on the backend and optionally `GEMINI_MODEL` (default `gemini-3.5-flash-lite`). `ALLOWED_ORIGINS` accepts comma-separated exact frontend origins. Keep the existing frontend origin `https://jobready-frontend-044r.onrender.com`.
 
-Frontend: root directory `frontend`, build `npm ci && npm run build`, publish `dist`. Set `VITE_API_URL=https://jobready-backend-49l8.onrender.com`; it is a public API address, never an API secret. Retain the SPA rewrite from `public/_redirects`.
+Frontend: root directory `frontend`, build `npm ci && npm run build`, publish `dist`. Set `VITE_API_URL=https://jobready-backend-49l8.onrender.com`; it is a public API address, never an API secret. The client also defaults to this existing API URL when that build variable is absent. In the existing Render static site's Redirects/Rewrites settings, keep the rule Source `/*`, Destination `/index.html`, Action `Rewrite` so direct links and reloads of `/resume`, `/interview`, and `/dashboard` work.
 
 No paid plan, new API key, or billing upgrade is required by the code. Actual AI availability depends on the configured provider key, model access, quota and provider terms. Basic mode works without an AI key.
 
