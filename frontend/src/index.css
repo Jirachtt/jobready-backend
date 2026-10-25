@@ -1174,3 +1174,13 @@ a:hover {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
 }
+/* Core workflow: readable input, explicit provenance, recoverable errors. */
+.workflow-note,.workflow-error,.result-notice{max-width:1200px;margin:18px auto;padding:16px 20px;border:1px solid var(--glass-border);border-radius:14px;background:var(--glass);line-height:1.8;overflow-wrap:anywhere}
+.workflow-error{color:var(--accent-red);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.result-notice{border-left:4px solid var(--accent-cyan);font-size:14px}.result-notice p{margin:6px 0 0}
+.workflow-actions{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin:24px 0}
+.help-text{font-size:13px;line-height:1.8;color:var(--text-secondary);margin:10px 0}
+.consent-label{display:flex;gap:10px;align-items:flex-start}.consent-label input{margin-top:8px}
+.practice-container{max-width:900px;margin:0 auto}.practice-card{padding:28px;margin:20px 0;line-height:1.85}.practice-card h2{font-size:22px;line-height:1.6;margin-bottom:14px}.practice-card h3{margin:20px 0 8px}.practice-card p{white-space:pre-wrap;overflow-wrap:anywhere;margin-bottom:12px}.practice-card textarea{width:100%;margin-bottom:18px}.practice-card details{padding:16px 0;border-top:1px solid var(--glass-border)}.practice-card summary{cursor:pointer;line-height:1.8}.practice-feedback{margin-top:24px}.practice-card ul,.result-card ul{padding-left:22px}
+input[type=file]{max-width:100%;padding:10px 0}textarea:disabled{opacity:.8}
+@media(max-width:600px){.practice-card{padding:20px}.workflow-actions .btn{width:100%}}
