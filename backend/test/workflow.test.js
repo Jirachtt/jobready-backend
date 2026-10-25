@@ -46,6 +46,17 @@ test('local practice completes five questions without fictional grades',async()=
   const summary=await ai.generateSummary(answers,null);
   assert.equal(summary.overall_score,null);assert.equal(summary.grade,'—');
 });
+test('summary arithmetic uses recorded scores even when AI returns a different scale',async()=>{
+ const supplied={overall_score:7.4,grade:'C',overall_feedback:'สรุปจากข้อมูลสมมติ',strengths:['อธิบายขั้นตอน'],improvements:['ฝึกเพิ่ม'],readiness_level:'สำหรับฝึก',next_steps:['ซ้อมอีกครั้ง'],confidence_assessment:'ข้อความเท่านั้น'};
+ const ai=createAiService({env:{GEMINI_API_KEY:'test-key'},fetchImpl:async()=>Response.json({candidates:[{content:{parts:[{text:JSON.stringify(supplied)}]}}]})});
+ const answers=[8,9,8,8,4].map(score=>({question:'q',answer:'synthetic',score,provider:'gemini'}));
+ const complete=await ai.generateSummary(answers,null,{useAi:true});
+ assert.equal(complete.provider,'gemini');assert.equal(complete.overall_score,74);assert.equal(complete.grade,'B');
+ const partial=await ai.generateSummary([...answers,{question:'q',answer:'synthetic',score:null,provider:'local'}],null,{useAi:true});
+ assert.equal(partial.overall_score,null);assert.equal(partial.grade,'—');
+ const zeros=await ai.generateSummary([{question:'q',answer:'synthetic',score:0,provider:'gemini'}],null,{useAi:true});
+ assert.equal(zeros.overall_score,0);assert.equal(zeros.grade,'F');
+});
 test('HTTP workflow validates files, origins, malformed input and saves real answers',async(t)=>{
   let parsed=0;
   const server=createApp({ai:createAiService({env:{}}),pdfParser:async()=>{parsed++;return {text:resume,numpages:1};},env:{}}).listen(0,'127.0.0.1');
