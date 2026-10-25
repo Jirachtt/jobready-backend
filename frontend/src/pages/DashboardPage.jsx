@@ -3,21 +3,22 @@ import {Link} from 'react-router-dom';
 import {getSummary,errorMessage} from '../services/api';
 import {readJson,save} from '../services/session';
 import ResultNotice from '../components/ResultNotice';
+const SUMMARY_CACHE_VERSION=2;
 export default function DashboardPage(){
  const [answers]=useState(()=>readJson('interviewAnswers',[]));
  const [resume]=useState(()=>readJson('resumeAnalysis'));
  const [summary,setSummary]=useState(null),[loading,setLoading]=useState(false),[error,setError]=useState('');
  async function load(){
   setLoading(true);setError('');
-  try{const data=await getSummary(answers,resume);setSummary(data);save('dashboardSummary',{answers:JSON.stringify(answers),data});}
+  try{const data=await getSummary(answers,resume);setSummary(data);save('dashboardSummary',{version:SUMMARY_CACHE_VERSION,answers:JSON.stringify(answers),data});}
   catch(e){setError(errorMessage(e));}finally{setLoading(false);}
  }
  useEffect(()=>{
   if(!Array.isArray(answers)||!answers.length)return;
   const cached=readJson('dashboardSummary');
-  if(cached?.answers===JSON.stringify(answers)){setSummary(cached.data);return;}
+  if(cached?.version===SUMMARY_CACHE_VERSION&&cached.answers===JSON.stringify(answers)){setSummary(cached.data);return;}
   let active=true;setLoading(true);
-  getSummary(answers,resume).then(data=>{if(active){setSummary(data);save('dashboardSummary',{answers:JSON.stringify(answers),data});}}).catch(e=>{if(active)setError(errorMessage(e));}).finally(()=>{if(active)setLoading(false);});
+  getSummary(answers,resume).then(data=>{if(active){setSummary(data);save('dashboardSummary',{version:SUMMARY_CACHE_VERSION,answers:JSON.stringify(answers),data});}}).catch(e=>{if(active)setError(errorMessage(e));}).finally(()=>{if(active)setLoading(false);});
   return ()=>{active=false;};
  },[answers,resume]);
  function download(){

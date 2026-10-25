@@ -77,7 +77,7 @@ function evaluateLocally(question,answer){
 }
 function summaryLocally(answers){
  const scored=answers.filter(a=>score(a.score,10)&&a.provider==='gemini');
- const complete=scored.length===answers.length;
+ const complete=answers.length>0&&scored.length===answers.length;
  const average=complete?Math.round(scored.reduce((sum,a)=>sum+a.score,0)/scored.length*10):null;
  return {overall_score:average,grade:average===null?'—':average>=80?'A':average>=70?'B':average>=60?'C':average>=50?'D':'F',
   overall_feedback:'ฝึกตอบ '+answers.length+' ข้อ '+(complete?'สรุปคะแนนจาก feedback ของ AI ที่ได้รับจริง':'บางข้อไม่มีคะแนนประเมิน จึงไม่สร้างคะแนนรวมขึ้นมาแทน'),
@@ -126,7 +126,11 @@ export function createAiService({env=process.env,fetchImpl=fetch}={}){
   analyzeResume:(resume_text,jd_text,o={})=>run('analyze',{resume_text,jd_text},()=>analyzeLocally(resume_text,jd_text),o.useAi),
   generateQuestions:(resume_text,jd_text,mode,o={})=>run('questions',{resume_text,jd_text,mode},()=>questionsLocally(resume_text,jd_text,mode),o.useAi),
   evaluateAnswer:(question,answer,jd_text,resume_text,o={})=>run('evaluate',{question,answer,jd_text,resume_text},()=>evaluateLocally(question,answer),o.useAi),
-  generateSummary:(questions_and_answers,resume_analysis,o={})=>run('summary',{questions_and_answers,resume_analysis},()=>summaryLocally(questions_and_answers),o.useAi)
+  generateSummary:async(questions_and_answers,resume_analysis,o={})=>{
+   const result=await run('summary',{questions_and_answers,resume_analysis},()=>summaryLocally(questions_and_answers),o.useAi);
+   const recorded=summaryLocally(questions_and_answers);
+   return {...result,overall_score:recorded.overall_score,grade:recorded.grade,score_type:'average_of_recorded_ai_feedback'};
+  }
  };
 }
 const service=createAiService();
