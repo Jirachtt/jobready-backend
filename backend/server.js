@@ -1,206 +1,90 @@
-import express from "express";
-import cors from "cors";
-import helmet from "helmet";
-import rateLimit from "express-rate-limit";
-import multer from "multer";
-import dotenv from "dotenv";
-import crypto from "crypto";
-import pdf from "pdf-parse/lib/pdf-parse.js";
-import {
-    analyzeResume,
-    generateQuestions,
-    evaluateAnswer,
-    generateSummary,
-} from "./services/aiService.js";
-
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import multer from 'multer';
+import dotenv from 'dotenv';
+import pdf from 'pdf-parse/lib/pdf-parse.js';
+import {fileURLToPath} from 'node:url';
+import path from 'node:path';
+import service from './services/aiService.js';
 dotenv.config();
-
-const app = express();
-const PORT = process.env.PORT || 8000;
-const upload = multer({ storage: multer.memoryStorage() });
-
-// ─── Security ────────────────────────────────────────────────
-app.use(helmet({
-    crossOriginResourcePolicy: { policy: "cross-origin" },
-}));
-
-// CORS — allow only frontend origins
-const ALLOWED_ORIGINS = [
-    "https://jobready-frontend-04fr.onrender.com",
-    "https://jobready-frontend.onrender.com",
-    "http://localhost:5173",
-    "http://localhost:3000",
-];
-app.use(cors({
-    origin: (origin, callback) => {
-        // Allow requests with no origin (mobile apps, curl, etc.)
-        if (!origin || ALLOWED_ORIGINS.some(o => origin.startsWith(o))) {
-            callback(null, true);
-        } else {
-            callback(null, true); // Still allow but log
-            console.warn(`[CORS] Request from unknown origin: ${origin}`);
-        }
-    },
-    methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: ["Content-Type"],
-}));
-
-app.use(express.json({ limit: "10mb" }));
-
-// Rate limiter — 30 requests per minute per IP on API routes
-const apiLimiter = rateLimit({
-    windowMs: 60 * 1000,
-    max: 30,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { detail: "คำขอมากเกินไป กรุณารอสักครู่แล้วลองใหม่" },
-});
-app.use("/api/", apiLimiter);
-
-// ─── Simple In-Memory Cache ──────────────────────────────────
-const cache = new Map();
-const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
-
-function getCacheKey(prefix, data) {
-    const hash = crypto.createHash("md5").update(JSON.stringify(data)).digest("hex");
-    return `${prefix}:${hash}`;
+export const MAX_FILE_BYTES=5*1024*1024;
+function required(body,key,max){
+ if(typeof body?.[key]!=='string'||!body[key].trim()||body[key].length>max){
+  const error=new Error(key+' ต้องเป็นข้อความไม่ว่างและยาวไม่เกิน '+max+' ตัวอักษร');error.status=400;throw error;
+ }
+ return body[key].trim();
 }
-
-function getFromCache(key) {
-    const entry = cache.get(key);
-    if (!entry) return null;
-    if (Date.now() - entry.timestamp > CACHE_TTL) {
-        cache.delete(key);
-        return null;
-    }
-    console.log(`[CACHE] Hit for ${key.substring(0, 30)}...`);
-    return entry.data;
+export function createApp({ai=service,pdfParser=pdf,env=process.env}={}){
+ const app=express();
+ if(env.RENDER==='true'||env.TRUST_PROXY==='1')app.set('trust proxy',1);
+ app.disable('x-powered-by');
+ const origins=new Set(['https://jobready-frontend-044r.onrender.com','http://localhost:5173','http://127.0.0.1:5173',...(env.ALLOWED_ORIGINS||'').split(',').map(x=>x.trim()).filter(Boolean)]);
+ app.use(helmet());
+ app.use(cors({origin:(origin,callback)=>{
+  if(!origin||origins.has(origin))return callback(null,true);
+  const error=new Error('Origin นี้ไม่ได้รับอนุญาต');error.status=403;callback(error);
+ },methods:['GET','POST','OPTIONS'],allowedHeaders:['Content-Type']}));
+ app.use(express.json({limit:'256kb'}));
+ app.use('/api/',rateLimit({windowMs:60000,limit:30,standardHeaders:'draft-8',legacyHeaders:false,message:{detail:'คำขอมากเกินไป กรุณารอหนึ่งนาทีแล้วลองใหม่'}}));
+ const health=(_req,res)=>res.json({status:'healthy',version:'2.0.0',ai:ai.status(),maxFileBytes:MAX_FILE_BYTES,timestamp:new Date().toISOString()});
+ app.get('/',health);app.get('/health',health);
+ const upload=multer({storage:multer.memoryStorage(),limits:{fileSize:MAX_FILE_BYTES,files:1,fields:0},fileFilter:(_req,file,callback)=>{
+  if(!file.originalname.toLowerCase().endsWith('.pdf')){const e=new Error('รองรับไฟล์ PDF เท่านั้น');e.status=400;return callback(e);}
+  callback(null,true);
+ }});
+ app.post('/api/resume/upload',upload.single('file'),async(req,res,next)=>{
+  try{
+   if(!req.file){const e=new Error('กรุณาเลือกไฟล์ PDF');e.status=400;throw e;}
+   if(!req.file.buffer.subarray(0,1024).includes(Buffer.from('%PDF-'))){const e=new Error('ไฟล์นี้ไม่มีรูปแบบ PDF ที่ถูกต้อง');e.status=422;throw e;}
+   let data;
+   try{data=await pdfParser(req.file.buffer,{max:50});}
+   catch{const e=new Error('อ่าน PDF นี้ไม่ได้ อาจมีรหัสผ่านหรือไฟล์เสีย กรุณาวางข้อความเรซูเม่แทน');e.status=422;throw e;}
+   if(!data.text?.trim()){const e=new Error('ไม่พบข้อความใน PDF ภาพสแกน กรุณาวางข้อความหรือทำ OCR ก่อนอัปโหลด');e.status=422;throw e;}
+   if(data.text.length>50000||data.numpages>50){const e=new Error('รองรับเรซูเม่ไม่เกิน 50 หน้าและข้อความ 50,000 ตัวอักษร');e.status=422;throw e;}
+   res.set('Cache-Control','no-store').json({filename:req.file.originalname,text:data.text.trim(),pages:data.numpages});
+  }catch(error){next(error);}
+ });
+ const route=(url,fn)=>app.post(url,async(req,res,next)=>{
+  try{
+   if(!req.body||typeof req.body!=='object'||Array.isArray(req.body)){const e=new Error('ข้อมูลคำขอไม่ถูกต้อง');e.status=400;throw e;}
+   if(req.body.use_ai!==undefined&&typeof req.body.use_ai!=='boolean'){const e=new Error('use_ai ต้องเป็น boolean');e.status=400;throw e;}
+   const result=await fn(req.body,{useAi:req.body.use_ai===true});
+   res.set('Cache-Control','no-store').json(result);
+  }catch(error){next(error);}
+ });
+ const context=body=>[required(body,'resume_text',50000),required(body,'jd_text',15000)];
+ route('/api/resume/analyze',(body,o)=>ai.analyzeResume(...context(body),o));
+ route('/api/interview/questions',(body,o)=>{
+  const values=context(body);
+  if(!['technical','behavioral'].includes(body.mode)){const e=new Error('กรุณาเลือก technical หรือ behavioral');e.status=400;throw e;}
+  return ai.generateQuestions(...values,body.mode,o);
+ });
+ route('/api/interview/evaluate',(body,o)=>{
+  const [resume,jd]=context(body);
+  return ai.evaluateAnswer(required(body,'question',3000),required(body,'answer',8000),jd,resume,o);
+ });
+ route('/api/interview/summary',(body,o)=>{
+  const values=body.questions_and_answers;
+  if(!Array.isArray(values)||values.length<1||values.length>10){const e=new Error('ต้องมีคำตอบจริง 1-10 ข้อ');e.status=400;throw e;}
+  const answers=values.map(row=>{
+   const question=required(row,'question',3000),answer=required(row,'answer',8000);
+   if(row.score!=null&&(typeof row.score!=='number'||!Number.isFinite(row.score)||row.score<0||row.score>10)){const e=new Error('คะแนนไม่อยู่ในช่วงที่รองรับ');e.status=400;throw e;}
+   return {question,answer,score:row.score??null,provider:row.provider==='gemini'?'gemini':'local'};
+  });
+  const a=body.resume_analysis;
+  const safe=a&&typeof a==='object'?{matching_score:typeof a.matching_score==='number'?a.matching_score:null,summary:typeof a.summary==='string'?a.summary.slice(0,3000):''}:null;
+  return ai.generateSummary(answers,safe,o);
+ });
+ app.use((error,_req,res,_next)=>{
+  const status=error.code==='LIMIT_FILE_SIZE'?413:error instanceof multer.MulterError?400:error.type==='entity.too.large'?413:error.type==='entity.parse.failed'?400:Number(error.status)||500;
+  const detail=error.code==='LIMIT_FILE_SIZE'?'ไฟล์ต้องมีขนาดไม่เกิน 5 MB':status>=500?'ระบบประมวลผลไม่สำเร็จ กรุณาลองใหม่':error.type==='entity.parse.failed'?'JSON ไม่ถูกต้อง':error.message;
+  res.status(status).json({detail});
+ });
+ return app;
 }
-
-function setCache(key, data) {
-    // Limit cache size to prevent memory leak
-    if (cache.size > 100) {
-        const oldest = cache.keys().next().value;
-        cache.delete(oldest);
-    }
-    cache.set(key, { data, timestamp: Date.now() });
+if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
+ const port=Number(process.env.PORT)||8000;
+ createApp().listen(port,process.env.HOST||'0.0.0.0',()=>console.log('JobReady API v2 ready on port '+port));
 }
-
-// ─── Health Check ────────────────────────────────────────────
-app.get("/", (req, res) => {
-    res.json({ message: "JobReady API is running", version: "1.1.0" });
-});
-
-app.get("/health", (req, res) => {
-    res.json({ status: "healthy", timestamp: new Date().toISOString() });
-});
-
-// ─── Resume Routes ───────────────────────────────────────────
-app.post("/api/resume/upload", upload.single("file"), async (req, res) => {
-    try {
-        if (!req.file) {
-            return res.status(400).json({ detail: "No file uploaded" });
-        }
-        if (!req.file.originalname.toLowerCase().endsWith(".pdf")) {
-            return res.status(400).json({ detail: "Only PDF files are accepted" });
-        }
-
-        const data = await pdf(req.file.buffer);
-        const text = data.text;
-
-        if (!text || !text.trim()) {
-            return res
-                .status(400)
-                .json({ detail: "Could not extract text from PDF. The file may be image-based." });
-        }
-
-        res.json({
-            filename: req.file.originalname,
-            text: text,
-            pages: data.numpages,
-        });
-    } catch (error) {
-        console.error("PDF upload error:", error);
-        res.status(500).json({ detail: `Error processing PDF: ${error.message}` });
-    }
-});
-
-app.post("/api/resume/analyze", async (req, res) => {
-    try {
-        const { resume_text, jd_text } = req.body;
-        if (!resume_text || !resume_text.trim()) {
-            return res.status(400).json({ detail: "Resume text is required" });
-        }
-        if (!jd_text || !jd_text.trim()) {
-            return res.status(400).json({ detail: "Job description is required" });
-        }
-
-        // Check cache
-        const cacheKey = getCacheKey("analyze", { resume_text, jd_text });
-        const cached = getFromCache(cacheKey);
-        if (cached) return res.json(cached);
-
-        const result = await analyzeResume(resume_text, jd_text);
-        if (!result.is_demo) setCache(cacheKey, result);
-        res.json(result);
-    } catch (error) {
-        console.error("Resume analyze error:", error);
-        res.status(500).json({ detail: `Error analyzing resume: ${error.message}` });
-    }
-});
-
-// ─── Interview Routes ────────────────────────────────────────
-app.post("/api/interview/questions", async (req, res) => {
-    try {
-        const { resume_text, jd_text, mode } = req.body;
-        if (!["technical", "behavioral"].includes(mode)) {
-            return res.status(400).json({ detail: "Mode must be 'technical' or 'behavioral'" });
-        }
-
-        const result = await generateQuestions(resume_text, jd_text, mode);
-        res.json(result);
-    } catch (error) {
-        console.error("Questions generation error:", error);
-        res.status(500).json({ detail: `Error generating questions: ${error.message}` });
-    }
-});
-
-app.post("/api/interview/evaluate", async (req, res) => {
-    try {
-        const { question, answer, jd_text, resume_text } = req.body;
-        if (!answer || !answer.trim()) {
-            return res.status(400).json({ detail: "Answer is required" });
-        }
-
-        const result = await evaluateAnswer(question, answer, jd_text, resume_text);
-        res.json(result);
-    } catch (error) {
-        console.error("Answer evaluation error:", error);
-        res.status(500).json({ detail: `Error evaluating answer: ${error.message}` });
-    }
-});
-
-app.post("/api/interview/summary", async (req, res) => {
-    try {
-        const { questions_and_answers, resume_analysis } = req.body;
-        if (!questions_and_answers || questions_and_answers.length === 0) {
-            return res.status(400).json({ detail: "At least one Q&A pair is required" });
-        }
-
-        // Check cache
-        const cacheKey = getCacheKey("summary", { questions_and_answers, resume_analysis });
-        const cached = getFromCache(cacheKey);
-        if (cached) return res.json(cached);
-
-        const result = await generateSummary(questions_and_answers, resume_analysis);
-        if (!result.is_demo) setCache(cacheKey, result);
-        res.json(result);
-    } catch (error) {
-        console.error("Summary generation error:", error);
-        res.status(500).json({ detail: `Error generating summary: ${error.message}` });
-    }
-});
-
-app.listen(PORT, () => {
-    console.log(`🚀 JobReady API v1.1.0 running on http://localhost:${PORT}`);
-});
