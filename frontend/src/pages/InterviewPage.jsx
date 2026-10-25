@@ -4,9 +4,9 @@ import {getQuestions,evaluateAnswer,errorMessage} from '../services/api';
 import {readText,readJson,save,remove} from '../services/session';
 import ResultNotice from '../components/ResultNotice';
 export default function InterviewPage(){
- const navigate=useNavigate(),inputRef=useRef(null);
+ const navigate=useNavigate(),inputRef=useRef(null),completed=useRef(false);
  const [resume]=useState(()=>readText('resumeText')),[jd]=useState(()=>readText('jdText'));
- const restored=useRef(readJson('interviewSession',{}));
+ const restored=useRef((()=>{const s=readJson('interviewSession',{});return s.questions?.length&&s.answers?.length>=s.questions.length?{}:s;})());
  const [mode,setMode]=useState(restored.current.mode||'technical');
  const [questions,setQuestions]=useState(restored.current.questions||[]);
  const [index,setIndex]=useState(restored.current.index||0);
@@ -16,7 +16,7 @@ export default function InterviewPage(){
  const [questionResult,setQuestionResult]=useState(restored.current.questionResult||null);
  const [loading,setLoading]=useState(false),[error,setError]=useState('');
  const current=questions[index];
- useEffect(()=>{save('interviewSession',{mode,questions,index,answers,input,feedback,questionResult});},[mode,questions,index,answers,input,feedback,questionResult]);
+ useEffect(()=>{if(!completed.current)save('interviewSession',{mode,questions,index,answers,input,feedback,questionResult});},[mode,questions,index,answers,input,feedback,questionResult]);
  async function start(){
   setLoading(true);setError('');remove('dashboardSummary');remove('interviewAnswers');
   try{const data=await getQuestions(resume,jd,mode);if(!data.questions?.length)throw new Error('No questions');
@@ -32,6 +32,7 @@ export default function InterviewPage(){
  function next(){
   if(!feedback)return;
   const updated=[...answers,{question:current.question_th||current.question,answer:input.trim(),score:feedback.score??null,provider:feedback.provider,feedback:feedback.feedback}];
+  if(index+1>=questions.length)completed.current=true;
   setAnswers(updated);setInput('');setFeedback(null);
   if(index+1>=questions.length){save('interviewAnswers',updated);remove('interviewSession');remove('dashboardSummary');navigate('/dashboard');}
   else{setIndex(index+1);inputRef.current?.focus();}
