@@ -1,456 +1,51 @@
-import { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import {
-    Code,
-    Users,
-    Send,
-    Bot,
-    User,
-    Lightbulb,
-    ArrowRight,
-    AlertCircle,
-    UserCheck,
-    ChevronRight,
-} from "lucide-react";
-import { getQuestions, evaluateAnswer } from "../services/api";
-
-export default function InterviewPage() {
-    const navigate = useNavigate();
-    const chatEndRef = useRef(null);
-    const inputRef = useRef(null);
-
-    const [resumeText] = useState(
-        () => sessionStorage.getItem("resumeText") || ""
-    );
-    const [jdText] = useState(() => sessionStorage.getItem("jdText") || "");
-
-    const [mode, setMode] = useState("");
-    const [questions, setQuestions] = useState([]);
-    const [currentQ, setCurrentQ] = useState(0);
-    const [messages, setMessages] = useState([]);
-    const [input, setInput] = useState("");
-    const [loading, setLoading] = useState(false);
-    const [started, setStarted] = useState(false);
-    const [feedback, setFeedback] = useState(null);
-    const [answers, setAnswers] = useState([]);
-    const [finished, setFinished] = useState(false);
-    const [waitingForNext, setWaitingForNext] = useState(false);
-
-    useEffect(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [messages, feedback]);
-
-    const startInterview = async () => {
-        if (!mode) return;
-        if (!resumeText || !jdText) {
-            setMessages([
-                {
-                    role: "ai",
-                    text: "⚠️ กรุณากลับไปหน้า Resume Analysis เพื่ออัปโหลด Resume และ Job Description ก่อนนะครับ",
-                },
-            ]);
-            setStarted(true);
-            return;
-        }
-        setLoading(true);
-        setStarted(true);
-        sessionStorage.removeItem("dashboardSummary");
-        sessionStorage.removeItem("interviewAnswers");
-        setMessages([
-            {
-                role: "ai",
-                text: "สวัสดีค่ะ! ดิฉันคือ HR Interview Coach ของ JobReady วันนี้จะมาฝึกสัมภาษณ์กับคุณค่ะ กำลังเตรียมคำถาม...",
-            },
-        ]);
-
-        let data = null;
-        for (let attempt = 0; attempt < 2; attempt++) {
-            try {
-                data = await getQuestions(resumeText, jdText, mode);
-                break;
-            } catch (err) {
-                if (attempt === 0) await new Promise(r => setTimeout(r, 3000));
-            }
-        }
-        const qs = data?.questions || [];
-        if (qs.length > 0) {
-            setQuestions(qs);
-            setCurrentQ(0);
-            setMessages((prev) => [
-                ...prev,
-                {
-                    role: "ai",
-                    text: `พร้อมแล้วครับ! ผมมีคำถาม ${qs.length} ข้อ (${mode === "technical" ? "Technical" : "Behavioral"} Mode)\n\nมาเริ่มกันเลย! 💪`,
-                },
-                {
-                    role: "ai",
-                    text: `**คำถามที่ 1** [${qs[0]?.category}] (${qs[0]?.difficulty})\n\n${qs[0]?.question}\n\n_${qs[0]?.question_th || ""}_`,
-                },
-            ]);
-        } else {
-            setMessages((prev) => [
-                ...prev,
-                {
-                    role: "ai",
-                    text: "ระบบกำลังเตรียมคำถาม กรุณากดเริ่มสัมภาษณ์อีกครั้งครับ 🙏",
-                },
-            ]);
-            setStarted(false);
-        }
-        setLoading(false);
-    };
-
-    const handleSend = async () => {
-        if (!input.trim() || loading) return;
-        const answer = input.trim();
-        setInput("");
-        setFeedback(null);
-        setMessages((prev) => [...prev, { role: "user", text: answer }]);
-        setLoading(true);
-
-        try {
-            const question = questions[currentQ]?.question;
-            const evalResult = await evaluateAnswer(
-                question,
-                answer,
-                jdText,
-                resumeText
-            );
-            setFeedback(evalResult);
-
-            const newAnswer = {
-                question,
-                answer,
-                score: evalResult.score,
-            };
-            const updatedAnswers = [...answers, newAnswer];
-            setAnswers(updatedAnswers);
-
-            setWaitingForNext(true);
-        } catch (err) {
-            // Retry once silently
-            try {
-                await new Promise(r => setTimeout(r, 2000));
-                const question = questions[currentQ]?.question;
-                const evalResult = await evaluateAnswer(question, answer, jdText, resumeText);
-                setFeedback(evalResult);
-                const newAnswer = { question, answer, score: evalResult.score };
-                const updatedAnswers = [...answers, newAnswer];
-                setAnswers(updatedAnswers);
-                setWaitingForNext(true);
-            } catch (retryErr) {
-                // Even retry failed — just show encouraging message and move on
-                setFeedback({ score: 6, feedback: "คำตอบของคุณดี ลองเพิ่มรายละเอียดและตัวอย่างจริงเพื่อเพิ่มคะแนน", tone_analysis: "น้ำเสียงดี มีความมั่นใจ", coach_tip: "ลองใช้ STAR Method ในการตอบ", improved_answer_hint: "เพิ่มตัวเลขและผลลัพธ์ที่วัดได้" });
-                const newAnswer = { question: questions[currentQ]?.question, answer, score: 6 };
-                const updatedAnswers = [...answers, newAnswer];
-                setAnswers(updatedAnswers);
-                setWaitingForNext(true);
-            }
-        }
-        setLoading(false);
-    };
-
-    const handleNextQuestion = () => {
-        setWaitingForNext(false);
-        setFeedback(null);
-        const nextQ = currentQ + 1;
-        if (nextQ < questions.length) {
-            setCurrentQ(nextQ);
-            setMessages((prev) => [
-                ...prev,
-                {
-                    role: "ai",
-                    text: `**คำถามที่ ${nextQ + 1}** [${questions[nextQ]?.category}] (${questions[nextQ]?.difficulty})\n\n${questions[nextQ]?.question}\n\n_${questions[nextQ]?.question_th || ""}_`,
-                },
-            ]);
-        } else {
-            setFinished(true);
-            sessionStorage.setItem("interviewAnswers", JSON.stringify(answers));
-            setMessages((prev) => [
-                ...prev,
-                {
-                    role: "ai",
-                    text: "🎉 ครบทุกคำถามแล้วครับ! คุณทำได้ดีมาก กดปุ่มด้านล่างเพื่อดูสรุปผลของคุณได้เลย",
-                },
-            ]);
-        }
-        setTimeout(() => inputRef.current?.focus(), 100);
-    };
-
-    const handleKeyDown = (e) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            handleSend();
-        }
-    };
-
-    return (
-        <div className="page">
-            <div className="page-header">
-                <h1>
-                    <span className="gradient-text">Mock Interview</span>
-                </h1>
-                <p>ฝึกสัมภาษณ์งานกับ AI Coach ที่ถามคำถามเจาะจงตาม Resume และ JD ของคุณ</p>
-            </div>
-
-            <div className="interview-container">
-                {!started ? (
-                    <>
-                        {/* Mode Selector */}
-                        <h3
-                            style={{
-                                textAlign: "center",
-                                marginBottom: "16px",
-                                fontSize: "16px",
-                                color: "var(--text-secondary)",
-                            }}
-                        >
-                            เลือกโหมดสัมภาษณ์
-                        </h3>
-                        <div className="mode-selector">
-                            <div
-                                className={`glass-card mode-card ${mode === "technical" ? "selected" : ""}`}
-                                onClick={() => setMode("technical")}
-                            >
-                                <Code
-                                    size={32}
-                                    color={
-                                        mode === "technical"
-                                            ? "var(--accent-purple)"
-                                            : "var(--text-muted)"
-                                    }
-                                />
-                                <h3 style={{ marginTop: "12px" }}>🔧 Technical</h3>
-                                <p>
-                                    คำถามเชิงเทคนิค ทดสอบความรู้เรื่อง Framework, Database,
-                                    Algorithm ฯลฯ
-                                </p>
-                            </div>
-                            <div
-                                className={`glass-card mode-card ${mode === "behavioral" ? "selected" : ""}`}
-                                onClick={() => setMode("behavioral")}
-                            >
-                                <Users
-                                    size={32}
-                                    color={
-                                        mode === "behavioral"
-                                            ? "var(--accent-purple)"
-                                            : "var(--text-muted)"
-                                    }
-                                />
-                                <h3 style={{ marginTop: "12px" }}>🧠 Behavioral</h3>
-                                <p>
-                                    คำถามเชิงพฤติกรรม ทดสอบ Teamwork, Leadership,
-                                    Problem-solving ฯลฯ
-                                </p>
-                            </div>
-                        </div>
-
-                        {(!resumeText || !jdText) && (
-                            <div
-                                style={{
-                                    textAlign: "center",
-                                    padding: "16px",
-                                    background: "rgba(245, 158, 11, 0.1)",
-                                    border: "1px solid rgba(245, 158, 11, 0.2)",
-                                    borderRadius: "var(--radius-md)",
-                                    color: "var(--accent-orange)",
-                                    fontSize: "14px",
-                                    marginBottom: "20px",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    gap: "8px",
-                                }}
-                            >
-                                <AlertCircle size={16} />
-                                กรุณาไปหน้า "วิเคราะห์ Resume" เพื่ออัปโหลด Resume และ JD ก่อนเริ่มสัมภาษณ์
-                            </div>
-                        )}
-
-                        <div style={{ textAlign: "center", marginTop: "16px" }}>
-                            <button
-                                className="btn btn-primary btn-lg"
-                                onClick={startInterview}
-                                disabled={!mode}
-                            >
-                                <Bot size={20} />
-                                เริ่มสัมภาษณ์
-                            </button>
-                        </div>
-                    </>
-                ) : (
-                    <>
-                        {/* Progress Bar */}
-                        {questions.length > 0 && (
-                            <div className="progress-bar">
-                                {questions.map((_, i) => (
-                                    <div
-                                        key={i}
-                                        className={`progress-dot ${i === currentQ ? "active" : ""} ${i < currentQ || finished ? "completed" : ""}`}
-                                    />
-                                ))}
-                            </div>
-                        )}
-
-                        {/* Chat */}
-                        <div className="chat-container">
-                            {messages.map((msg, i) => (
-                                <div
-                                    key={i}
-                                    className={`chat-message ${msg.role === "ai" ? "ai" : "user"}`}
-                                >
-                                    {msg.role === "ai" && (
-                                        <div className="chat-avatar ai-avatar">
-                                            <UserCheck size={18} color="white" />
-                                        </div>
-                                    )}
-                                    <div className="chat-bubble">
-                                        {msg.text.split("\n").map((line, li) => (
-                                            <span key={li}>
-                                                {line.startsWith("**") && line.endsWith("**") ? (
-                                                    <strong>{line.replace(/\*\*/g, "")}</strong>
-                                                ) : line.startsWith("**") ? (
-                                                    <>
-                                                        <strong>
-                                                            {line.substring(2, line.lastIndexOf("**"))}
-                                                        </strong>
-                                                        {line.substring(line.lastIndexOf("**") + 2)}
-                                                    </>
-                                                ) : (
-                                                    line
-                                                )}
-                                                <br />
-                                            </span>
-                                        ))}
-                                    </div>
-                                    {msg.role === "user" && (
-                                        <div className="chat-avatar user-avatar">
-                                            <User size={18} />
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-
-                            {/* Feedback Card */}
-                            {feedback && (
-                                <div className="feedback-card">
-                                    <div className="feedback-score">
-                                        <span className="feedback-score-value gradient-text">
-                                            {feedback.score}
-                                        </span>
-                                        <span style={{ color: "var(--text-muted)", fontSize: "14px" }}>
-                                            / 10
-                                        </span>
-                                    </div>
-                                    <h4>📝 Feedback</h4>
-                                    <p>{feedback.feedback}</p>
-                                    <h4 style={{ marginTop: "12px" }}>🎤 การวิเคราะห์โทน</h4>
-                                    <p>{feedback.tone_analysis}</p>
-                                    <h4 style={{ marginTop: "12px" }}>
-                                        <Lightbulb
-                                            size={14}
-                                            style={{ display: "inline", marginRight: "4px" }}
-                                        />
-                                        Coach Tip
-                                    </h4>
-                                    <p>{feedback.coach_tip}</p>
-                                    <h4 style={{ marginTop: "12px" }}>💡 Hint</h4>
-                                    <p style={{ fontStyle: "italic" }}>
-                                        {feedback.improved_answer_hint}
-                                    </p>
-                                    {feedback.is_demo && (
-                                        <div
-                                            style={{
-                                                marginTop: "16px",
-                                                display: "inline-flex",
-                                                alignItems: "center",
-                                                gap: "6px",
-                                                padding: "8px 16px",
-                                                background: "rgba(245, 158, 11, 0.1)",
-                                                border: "1px solid rgba(245, 158, 11, 0.2)",
-                                                borderRadius: "12px",
-                                                fontSize: "13px",
-                                                color: "var(--accent-orange)",
-                                            }}
-                                        >
-                                            <AlertCircle size={14} />
-                                            ⚠️ ผลประเมินเป็นข้อมูลตัวอย่าง (ระบบ AI ไม่พร้อมใช้งานชั่วคราว)
-                                        </div>
-                                    )}
-                                    {!finished && (
-                                        <button
-                                            className="next-question-btn"
-                                            onClick={handleNextQuestion}
-                                        >
-                                            {currentQ + 1 < questions.length ? (
-                                                <>
-                                                    คำถามถัดไป
-                                                    <ChevronRight size={18} />
-                                                </>
-                                            ) : (
-                                                <>
-                                                    ดูสรุปผล
-                                                    <ArrowRight size={18} />
-                                                </>
-                                            )}
-                                        </button>
-                                    )}
-                                </div>
-                            )}
-
-                            {loading && (
-                                <div className="chat-message ai">
-                                    <div className="chat-avatar ai-avatar">
-                                        <UserCheck size={18} color="white" />
-                                    </div>
-                                    <div className="chat-bubble">
-                                        <div className="loading-dots">
-                                            <span></span>
-                                            <span></span>
-                                            <span></span>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            <div ref={chatEndRef} />
-                        </div>
-
-                        {/* Input */}
-                        {!finished ? (
-                            <div className="chat-input-area">
-                                <input
-                                    ref={inputRef}
-                                    className="chat-input"
-                                    placeholder="พิมพ์คำตอบของคุณที่นี่..."
-                                    value={input}
-                                    onChange={(e) => setInput(e.target.value)}
-                                    onKeyDown={handleKeyDown}
-                                    disabled={loading || questions.length === 0 || waitingForNext}
-                                />
-                                <button
-                                    className="btn btn-primary"
-                                    onClick={handleSend}
-                                    disabled={loading || !input.trim() || waitingForNext}
-                                >
-                                    <Send size={18} />
-                                </button>
-                            </div>
-                        ) : (
-                            <div style={{ textAlign: "center", marginTop: "20px" }}>
-                                <button
-                                    className="btn btn-primary btn-lg"
-                                    onClick={() => navigate("/dashboard")}
-                                >
-                                    <ArrowRight size={20} />
-                                    ดูสรุปผลการสัมภาษณ์
-                                </button>
-                            </div>
-                        )}
-                    </>
-                )}
-            </div>
-        </div>
-    );
+import {useEffect,useRef,useState} from 'react';
+import {Link,useNavigate} from 'react-router-dom';
+import {getQuestions,evaluateAnswer,errorMessage} from '../services/api';
+import {readText,readJson,save,remove} from '../services/session';
+import ResultNotice from '../components/ResultNotice';
+export default function InterviewPage(){
+ const navigate=useNavigate(),inputRef=useRef(null);
+ const [resume]=useState(()=>readText('resumeText')),[jd]=useState(()=>readText('jdText'));
+ const restored=useRef(readJson('interviewSession',{}));
+ const [mode,setMode]=useState(restored.current.mode||'technical');
+ const [questions,setQuestions]=useState(restored.current.questions||[]);
+ const [index,setIndex]=useState(restored.current.index||0);
+ const [answers,setAnswers]=useState(restored.current.answers||[]);
+ const [input,setInput]=useState(restored.current.input||'');
+ const [feedback,setFeedback]=useState(restored.current.feedback||null);
+ const [questionResult,setQuestionResult]=useState(restored.current.questionResult||null);
+ const [loading,setLoading]=useState(false),[error,setError]=useState('');
+ const current=questions[index];
+ useEffect(()=>{save('interviewSession',{mode,questions,index,answers,input,feedback,questionResult});},[mode,questions,index,answers,input,feedback,questionResult]);
+ async function start(){
+  setLoading(true);setError('');remove('dashboardSummary');remove('interviewAnswers');
+  try{const data=await getQuestions(resume,jd,mode);if(!data.questions?.length)throw new Error('No questions');
+   setQuestions(data.questions);setQuestionResult(data);setIndex(0);setAnswers([]);setInput('');setFeedback(null);
+  }catch(e){setError(errorMessage(e));}finally{setLoading(false);}
+ }
+ async function submit(){
+  if(!input.trim()||!current)return;
+  setLoading(true);setError('');
+  try{setFeedback(await evaluateAnswer(current.question_th||current.question,input.trim(),jd,resume));}
+  catch(e){setError(errorMessage(e));}finally{setLoading(false);}
+ }
+ function next(){
+  if(!feedback)return;
+  const updated=[...answers,{question:current.question_th||current.question,answer:input.trim(),score:feedback.score??null,provider:feedback.provider,feedback:feedback.feedback}];
+  setAnswers(updated);setInput('');setFeedback(null);
+  if(index+1>=questions.length){save('interviewAnswers',updated);remove('interviewSession');remove('dashboardSummary');navigate('/dashboard');}
+  else{setIndex(index+1);inputRef.current?.focus();}
+ }
+ if(!resume||!jd)return <div className="page"><div className="page-header"><h1>เตรียมข้อมูลก่อนฝึก</h1><p>วางเรซูเม่และรายละเอียดงานก่อน เพื่อให้คำถามเชื่อมกับงานที่สมัคร</p><Link className="btn btn-primary" to="/resume">ไปหน้าเรซูเม่</Link></div></div>;
+ return <div className="page"><div className="page-header"><h1><span className="gradient-text">ฝึกสัมภาษณ์ทีละข้อ</span></h1><p>คำตอบค้างอยู่ได้เมื่อกลับมาหน้านี้ในแท็บเดิม</p></div><div className="practice-container">
+  {!questions.length?<section className="glass-card practice-card"><h2>เลือกชุดคำถาม</h2><div className="workflow-actions">{[['technical','เทคนิค'],['behavioral','ประสบการณ์และการทำงาน']].map(([value,label])=><button key={value} aria-pressed={mode===value} className={'btn '+(mode===value?'btn-primary':'btn-secondary')} disabled={loading} onClick={()=>setMode(value)}>{label}</button>)}</div><button className="btn btn-primary" disabled={loading} onClick={start}>{loading?'กำลังเตรียมคำถาม…':'เริ่มฝึก 5 ข้อ'}</button></section>:<>
+   <ResultNotice result={questionResult}/><section className="glass-card practice-card">
+   <p className="help-text">คำถาม {index+1} / {questions.length} · {current?.category}</p><h2>{current?.question_th||current?.question}</h2><p className="help-text">{current?.question}</p>
+   <label className="input-label" htmlFor="practice-answer">คำตอบของคุณ</label><textarea ref={inputRef} id="practice-answer" className="jd-input" rows={7} maxLength={8000} disabled={loading||!!feedback} value={input} onChange={e=>setInput(e.target.value)} placeholder="ลองตอบด้วยข้อมูลจริง: บริบท ส่วนที่ทำ ขั้นตอนตรวจ และผลที่ยืนยันได้..."/>
+   {!feedback&&<button className="btn btn-primary" disabled={loading||!input.trim()} onClick={submit}>{loading?'กำลังตรวจคำตอบ…':'รับข้อเสนอแนะ'}</button>}
+   {feedback&&<div className="practice-feedback"><ResultNotice result={feedback}/><h3>{feedback.score==null?'เช็กลิสต์ทบทวนคำตอบ':'คะแนนฝึกจาก AI: '+feedback.score+'/10'}</h3><p>{feedback.feedback}</p>{feedback.rubric&&<ul>{feedback.rubric.map(x=><li key={x.label}>{x.found?'พบคำที่เกี่ยวข้อง: ':'ลองเติม: '}{x.label}</li>)}</ul>}<h3>ลองปรับแบบนี้</h3><p>{feedback.coach_tip}</p><p>{feedback.improved_answer_hint}</p><h3>ตัวอย่างสำหรับซ้อม</h3><p>{feedback.sample_answer}</p><p className="help-text">ตรวจและเติมเฉพาะข้อเท็จจริงของคุณ ตัวอย่างไม่ใช่ประสบการณ์ที่ยืนยันแล้วของผู้ใช้ทุกคน</p><div className="workflow-actions"><button className="btn btn-secondary" onClick={()=>setFeedback(null)}>ลองตอบข้อนี้ใหม่</button><button className="btn btn-primary" onClick={next}>{index+1===questions.length?'บันทึกและดูสรุป':'บันทึกและไปข้อถัดไป'}</button></div></div>}
+   </section><button className="btn btn-secondary" disabled={loading} onClick={()=>{setQuestions([]);setAnswers([]);setIndex(0);setFeedback(null);setInput('');remove('interviewAnswers');remove('dashboardSummary');}}>เริ่มชุดฝึกใหม่</button>
+  </>}
+  {error&&<div className="workflow-error" role="alert">{error} คำตอบของคุณยังอยู่ กรุณาลองอีกครั้ง</div>}
+ </div></div>;
 }
