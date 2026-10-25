@@ -39,7 +39,9 @@ export function createApp({ai=service,pdfParser=pdf,env=process.env}={}){
    if(!req.file){const e=new Error('กรุณาเลือกไฟล์ PDF');e.status=400;throw e;}
    if(!req.file.buffer.subarray(0,1024).includes(Buffer.from('%PDF-'))){const e=new Error('ไฟล์นี้ไม่มีรูปแบบ PDF ที่ถูกต้อง');e.status=422;throw e;}
    let data;
-   try{data=await pdfParser(req.file.buffer,{max:50});}
+   // PDF.js expects an ordinary typed array. Node Buffer.slice() returns a
+   // shared view, which makes this legacy parser misread valid cross references.
+   try{data=await pdfParser(new Uint8Array(req.file.buffer),{max:50});}
    catch{const e=new Error('อ่าน PDF นี้ไม่ได้ อาจมีรหัสผ่านหรือไฟล์เสีย กรุณาวางข้อความเรซูเม่แทน');e.status=422;throw e;}
    if(!data.text?.trim()){const e=new Error('ไม่พบข้อความใน PDF ภาพสแกน กรุณาวางข้อความหรือทำ OCR ก่อนอัปโหลด');e.status=422;throw e;}
    if(data.text.length>50000||data.numpages>50){const e=new Error('รองรับเรซูเม่ไม่เกิน 50 หน้าและข้อความ 50,000 ตัวอักษร');e.status=422;throw e;}
