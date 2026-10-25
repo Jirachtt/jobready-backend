@@ -1,436 +1,62 @@
-import { useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
-import {
-    Upload,
-    FileText,
-    CheckCircle,
-    AlertCircle,
-    XCircle,
-    ArrowRight,
-    Sparkles,
-    TrendingUp,
-    TrendingDown,
-    Search,
-    Lightbulb,
-    Tag,
-    RefreshCw,
-} from "lucide-react";
-import { uploadResume, analyzeResume } from "../services/api";
-
-export default function ResumePage() {
-    const navigate = useNavigate();
-    const fileInputRef = useRef();
-    const [file, setFile] = useState(null);
-    const [resumeText, setResumeText] = useState("");
-    const [jdText, setJdText] = useState("");
-    const [dragOver, setDragOver] = useState(false);
-    const [uploading, setUploading] = useState(false);
-    const [analyzing, setAnalyzing] = useState(false);
-    const [analysis, setAnalysis] = useState(null);
-    const [error, setError] = useState("");
-
-    const handleFile = async (f) => {
-        if (!f || !f.name.toLowerCase().endsWith(".pdf")) {
-            setError("กรุณาอัปโหลดไฟล์ PDF เท่านั้น");
-            return;
-        }
-        setFile(f);
-        setError("");
-        setUploading(true);
-        try {
-            const data = await uploadResume(f);
-            setResumeText(data.text);
-        } catch (err) {
-            setError(err.response?.data?.detail || "เกิดข้อผิดพลาดในการอ่านไฟล์ PDF");
-            setFile(null);
-        }
-        setUploading(false);
-    };
-
-    const handleDrop = (e) => {
-        e.preventDefault();
-        setDragOver(false);
-        handleFile(e.dataTransfer.files[0]);
-    };
-
-    const handleAnalyze = async () => {
-        if (!resumeText || !jdText.trim()) {
-            setError("กรุณาอัปโหลด Resume และระบุ Job Description");
-            return;
-        }
-        setError("");
-        setAnalyzing(true);
-        // Try up to 2 times on frontend side
-        for (let attempt = 0; attempt < 2; attempt++) {
-            try {
-                const result = await analyzeResume(resumeText, jdText);
-                setAnalysis(result);
-                sessionStorage.setItem("resumeText", resumeText);
-                sessionStorage.setItem("jdText", jdText);
-                sessionStorage.setItem("resumeAnalysis", JSON.stringify(result));
-                setAnalyzing(false);
-                return;
-            } catch (err) {
-                if (attempt === 0) {
-                    await new Promise(r => setTimeout(r, 3000));
-                }
-            }
-        }
-        setError("ระบบกำลังประมวลผลหนัก กรุณากดวิเคราะห์อีกครั้ง");
-        setAnalyzing(false);
-    };
-
-    const scoreClass =
-        analysis?.matching_score >= 70
-            ? "high"
-            : analysis?.matching_score >= 40
-                ? "medium"
-                : "low";
-
-    return (
-        <div className="page">
-            <div className="page-header">
-                <h1>
-                    <span className="gradient-text">วิเคราะห์ Resume</span>
-                </h1>
-                <p>
-                    อัปโหลด Resume (PDF) และวาง Job Description เพื่อให้ AI
-                    วิเคราะห์ความเหมาะสม
-                </p>
-            </div>
-
-            <div className="resume-layout">
-                {/* Left: Upload */}
-                <div>
-                    <div className="form-section">
-                        <label className="input-label">📄 อัปโหลด Resume (PDF)</label>
-                        <div
-                            className={`upload-zone ${dragOver ? "drag-over" : ""} ${file ? "has-file" : ""}`}
-                            onClick={() => fileInputRef.current.click()}
-                            onDragOver={(e) => {
-                                e.preventDefault();
-                                setDragOver(true);
-                            }}
-                            onDragLeave={() => setDragOver(false)}
-                            onDrop={handleDrop}
-                        >
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept=".pdf"
-                                style={{ display: "none" }}
-                                onChange={(e) => handleFile(e.target.files[0])}
-                            />
-                            {uploading ? (
-                                <>
-                                    <div
-                                        className="spinner"
-                                        style={{ width: 40, height: 40, margin: "0 auto 16px" }}
-                                    ></div>
-                                    <h3>กำลังอ่านไฟล์...</h3>
-                                </>
-                            ) : file ? (
-                                <>
-                                    <div className="upload-icon">
-                                        <CheckCircle size={48} color="var(--accent-green)" />
-                                    </div>
-                                    <h3>อัปโหลดสำเร็จ!</h3>
-                                    <div className="upload-filename">
-                                        <FileText size={14} />
-                                        {file.name}
-                                    </div>
-                                </>
-                            ) : (
-                                <>
-                                    <div className="upload-icon">
-                                        <Upload size={48} />
-                                    </div>
-                                    <h3>ลากไฟล์มาวาง หรือคลิกเพื่อเลือก</h3>
-                                    <p>รองรับไฟล์ .pdf เท่านั้น</p>
-                                </>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Right: JD Input */}
-                <div>
-                    <div className="form-section">
-                        <label className="input-label">💼 Job Description</label>
-                        <textarea
-                            className="jd-input"
-                            placeholder="วางรายละเอียดตำแหน่งงานที่ต้องการสมัครลงที่นี่...
-
-เช่น:
-- ตำแหน่ง: Frontend Developer
-- บริษัท: XYZ Company
-- คุณสมบัติ: React, TypeScript, REST API
-- ประสบการณ์: 0-2 ปี"
-                            value={jdText}
-                            onChange={(e) => setJdText(e.target.value)}
-                            style={{ minHeight: "280px" }}
-                        />
-                    </div>
-                </div>
-            </div>
-
-            {/* Error */}
-            {error && (
-                <div
-                    style={{
-                        maxWidth: "1200px",
-                        margin: "16px auto",
-                        padding: "12px 20px",
-                        background: "rgba(239, 68, 68, 0.1)",
-                        border: "1px solid rgba(239, 68, 68, 0.2)",
-                        borderRadius: "var(--radius-md)",
-                        color: "var(--accent-red)",
-                        fontSize: "14px",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "8px",
-                    }}
-                >
-                    <AlertCircle size={16} /> {error}
-                </div>
-            )}
-
-            {/* Analyze Button */}
-            <div
-                style={{
-                    textAlign: "center",
-                    margin: "32px 0",
-                    display: "flex",
-                    gap: "12px",
-                    justifyContent: "center",
-                    flexWrap: "wrap",
-                }}
-            >
-                <button
-                    className="btn btn-primary btn-lg"
-                    onClick={handleAnalyze}
-                    disabled={!resumeText || !jdText.trim() || analyzing}
-                >
-                    {analyzing ? (
-                        <>
-                            <div className="spinner"></div>
-                            กำลังวิเคราะห์ โปรดรอสักครู่...
-                        </>
-                    ) : (
-                        <>
-                            <Sparkles size={20} />
-                            วิเคราะห์ Resume
-                        </>
-                    )}
-                </button>
-                {error && (
-                    <button
-                        className="btn btn-secondary"
-                        onClick={handleAnalyze}
-                        disabled={!resumeText || !jdText.trim() || analyzing}
-                    >
-                        <RefreshCw size={16} />
-                        ลองใหม่อีกครั้ง
-                    </button>
-                )}
-            </div>
-
-            {/* Shimmer Loading */}
-            {analyzing && (
-                <div className="analysis-results">
-                    <div className="shimmer-container">
-                        <div className="shimmer-circle"></div>
-                        <div className="shimmer-line" style={{ width: "60%", margin: "16px auto" }}></div>
-                        <div className="shimmer-line" style={{ width: "80%", margin: "8px auto" }}></div>
-                        <div className="shimmer-grid">
-                            <div className="shimmer-card"></div>
-                            <div className="shimmer-card"></div>
-                            <div className="shimmer-card"></div>
-                        </div>
-                        <p style={{ textAlign: "center", color: "var(--text-muted)", marginTop: "24px", fontSize: "14px" }}>
-                            🤖 AI กำลังวิเคราะห์ Resume อย่างละเอียด...
-                        </p>
-                    </div>
-                </div>
-            )}
-
-            {/* Analysis Results */}
-            {analysis && !analyzing && (
-                <div className="analysis-results">
-                    {/* Score Gauge */}
-                    <div className="score-gauge">
-                        <div className={`score-circle ${scoreClass}`}>
-                            <span
-                                className="score-number gradient-text"
-                            >
-                                {analysis.matching_score}
-                            </span>
-                            <span className="score-label">Matching Score</span>
-                        </div>
-                        <p
-                            style={{
-                                color: "var(--text-secondary)",
-                                fontSize: "15px",
-                                maxWidth: "500px",
-                                margin: "0 auto",
-                            }}
-                        >
-                            {analysis.summary}
-                        </p>
-                        {analysis.is_demo && (
-                            <div
-                                style={{
-                                    marginTop: "16px",
-                                    display: "flex",
-                                    flexDirection: "column",
-                                    alignItems: "center",
-                                    gap: "8px",
-                                }}
-                            >
-                                <div
-                                    style={{
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        gap: "6px",
-                                        padding: "8px 16px",
-                                        background: "rgba(245, 158, 11, 0.1)",
-                                        border: "1px solid rgba(245, 158, 11, 0.2)",
-                                        borderRadius: "12px",
-                                        fontSize: "13px",
-                                        color: "var(--accent-orange)",
-                                    }}
-                                >
-                                    <AlertCircle size={14} />
-                                    ⚠️ ผลวิเคราะห์เป็นข้อมูลตัวอย่าง (ระบบ AI ไม่พร้อมใช้งานชั่วคราว)
-                                </div>
-                                <button
-                                    className="btn btn-secondary btn-sm"
-                                    onClick={handleAnalyze}
-                                    disabled={analyzing}
-                                    style={{ fontSize: "13px" }}
-                                >
-                                    <RefreshCw size={14} />
-                                    ลองวิเคราะห์ใหม่
-                                </button>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Results Grid */}
-                    <div className="results-grid">
-                        <div className="glass-card result-card">
-                            <h3>
-                                <TrendingUp size={18} color="var(--accent-green)" />
-                                จุดแข็ง
-                            </h3>
-                            <ul className="result-list">
-                                {analysis.strengths?.map((s, i) => (
-                                    <li key={i}>
-                                        <CheckCircle
-                                            size={14}
-                                            color="var(--accent-green)"
-                                            style={{ flexShrink: 0, marginTop: 3 }}
-                                        />
-                                        {s}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-
-                        <div className="glass-card result-card">
-                            <h3>
-                                <TrendingDown size={18} color="var(--accent-orange)" />
-                                จุดที่ควรปรับปรุง
-                            </h3>
-                            <ul className="result-list">
-                                {analysis.weaknesses?.map((w, i) => (
-                                    <li key={i}>
-                                        <AlertCircle
-                                            size={14}
-                                            color="var(--accent-orange)"
-                                            style={{ flexShrink: 0, marginTop: 3 }}
-                                        />
-                                        {w}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-
-                        <div className="glass-card result-card">
-                            <h3>
-                                <Lightbulb size={18} color="var(--accent-cyan)" />
-                                คำแนะนำ
-                            </h3>
-                            <ul className="result-list">
-                                {analysis.suggestions?.map((s, i) => (
-                                    <li key={i}>
-                                        <Sparkles
-                                            size={14}
-                                            color="var(--accent-cyan)"
-                                            style={{ flexShrink: 0, marginTop: 3 }}
-                                        />
-                                        {s}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-
-                        <div className="glass-card result-card">
-                            <h3>
-                                <Tag size={18} color="var(--accent-blue)" />
-                                Keywords
-                            </h3>
-                            <div style={{ marginBottom: "12px" }}>
-                                <p
-                                    style={{
-                                        fontSize: "12px",
-                                        color: "var(--text-muted)",
-                                        marginBottom: "8px",
-                                    }}
-                                >
-                                    ✅ Keyword ที่ตรง:
-                                </p>
-                                <div>
-                                    {analysis.keyword_matches?.map((k, i) => (
-                                        <span key={i} className="tag tag-green">
-                                            {k}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                            <div>
-                                <p
-                                    style={{
-                                        fontSize: "12px",
-                                        color: "var(--text-muted)",
-                                        marginBottom: "8px",
-                                    }}
-                                >
-                                    ❌ Keyword ที่ขาด:
-                                </p>
-                                <div>
-                                    {analysis.missing_keywords?.map((k, i) => (
-                                        <span key={i} className="tag tag-red">
-                                            {k}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Next Step */}
-                    <div style={{ textAlign: "center", marginTop: "40px" }}>
-                        <button
-                            className="btn btn-primary btn-lg"
-                            onClick={() => navigate("/interview")}
-                        >
-                            <ArrowRight size={20} />
-                            ไปฝึกสัมภาษณ์ต่อ
-                        </button>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
+import {useState,useRef} from 'react';
+import {useNavigate} from 'react-router-dom';
+import {Upload,ArrowRight,Sparkles,AlertCircle,FileText} from 'lucide-react';
+import {uploadResume,analyzeResume,errorMessage} from '../services/api';
+import {readText,readJson,save,clearPractice,clearSession} from '../services/session';
+import ResultNotice from '../components/ResultNotice';
+export default function ResumePage(){
+ const navigate=useNavigate(),fileInput=useRef(null),uploadRevision=useRef(0);
+ const [resume,setResume]=useState(()=>readText('resumeText'));
+ const [jd,setJd]=useState(()=>readText('jdText'));
+ const [useAi,setUseAi]=useState(()=>readText('useAi')==='true');
+ const [analysis,setAnalysis]=useState(()=>readJson('resumeAnalysis'));
+ const [fileName,setFileName]=useState(''),[uploading,setUploading]=useState(false),[analyzing,setAnalyzing]=useState(false),[error,setError]=useState('');
+ const busy=uploading||analyzing;
+ function changeResume(value){uploadRevision.current++;setUploading(false);setResume(value);setAnalysis(null);save('resumeText',value);save('resumeAnalysis',null);clearPractice();}
+ function changeJd(value){setJd(value);setAnalysis(null);save('jdText',value);save('resumeAnalysis',null);clearPractice();}
+ async function handleFile(file){
+  if(!file)return;
+  if(!file.name.toLowerCase().endsWith('.pdf')){setError('กรุณาเลือก PDF หรือวางข้อความแทน');return;}
+  if(file.size>5*1024*1024){setError('ไฟล์ต้องมีขนาดไม่เกิน 5 MB');return;}
+  const revision=++uploadRevision.current;setUploading(true);setError('');
+  try{
+   const data=await uploadResume(file);
+   if(revision!==uploadRevision.current)return;
+   setResume(data.text);setFileName(data.filename);setAnalysis(null);save('resumeText',data.text);save('resumeAnalysis',null);clearPractice();
+  }catch(e){if(revision===uploadRevision.current)setError(errorMessage(e));}
+  finally{if(revision===uploadRevision.current)setUploading(false);if(fileInput.current)fileInput.current.value='';}
+ }
+ async function analyze(){
+  if(!resume.trim()||!jd.trim())return;
+  setAnalyzing(true);setError('');save('useAi',String(useAi));clearPractice();
+  try{const data=await analyzeResume(resume,jd);setAnalysis(data);save('resumeAnalysis',data);}
+  catch(e){setError(errorMessage(e));}finally{setAnalyzing(false);}
+ }
+ function clear(){uploadRevision.current++;clearSession();setResume('');setJd('');setUseAi(false);setAnalysis(null);setFileName('');setError('');setUploading(false);}
+ return <div className="page">
+  <div className="page-header"><h1><span className="gradient-text">วิเคราะห์ Resume</span></h1><p>อ่านเรซูเม่ เทียบรายละเอียดงาน แล้วนำข้อเสนอแนะไปฝึกตอบด้วยประสบการณ์จริง</p></div>
+  <div className="workflow-note">ไฟล์ PDF ใช้เพื่ออ่านข้อความและไม่บันทึกลงฐานข้อมูลของแอป ข้อความและผลฝึกเก็บชั่วคราวในแท็บนี้ หากเลือกใช้ AI ข้อความเรซูเม่ รายละเอียดงานและคำตอบจะส่งไป Google Gemini เพื่อประมวลผล</div>
+  <div className="resume-layout"><section className="form-section">
+   <label className="input-label" htmlFor="resume-file"><Upload size={18}/> อัปโหลด PDF หรือวางข้อความ</label>
+   <input ref={fileInput} id="resume-file" type="file" accept=".pdf,application/pdf" disabled={busy} onChange={e=>handleFile(e.target.files?.[0])}/>
+   <p className="help-text">{uploading?'กำลังอ่านข้อความ…':fileName||'PDF ไม่เกิน 5 MB / 50 หน้า ภาพสแกนที่อ่านข้อความไม่ได้สามารถวางข้อความแทนได้'}</p>
+   <label className="input-label" htmlFor="resume-text"><FileText size={18}/> ข้อความเรซูเม่ (ตรวจและแก้ก่อนวิเคราะห์)</label>
+   <textarea id="resume-text" className="jd-input" value={resume} disabled={analyzing} maxLength={50000} onChange={e=>changeResume(e.target.value)} placeholder="วางข้อความประสบการณ์ ทักษะ และโปรเจกต์ของคุณ..." style={{minHeight:300}}/>
+   <p className="help-text">{resume.length.toLocaleString()} / 50,000 ตัวอักษร</p>
+  </section><section className="form-section">
+   <label className="input-label" htmlFor="jd-text">รายละเอียดตำแหน่งงาน</label>
+   <textarea id="jd-text" className="jd-input" value={jd} disabled={busy} maxLength={15000} onChange={e=>changeJd(e.target.value)} placeholder="วางหน้าที่และคุณสมบัติของตำแหน่งที่ต้องการสมัคร..." style={{minHeight:380}}/>
+   <p className="help-text">{jd.length.toLocaleString()} / 15,000 ตัวอักษร</p>
+  </section></div>
+  <div className="workflow-note"><label className="consent-label"><input type="checkbox" checked={useAi} disabled={busy} onChange={e=>{setUseAi(e.target.checked);save('useAi',String(e.target.checked));setAnalysis(null);save('resumeAnalysis',null);clearPractice();}}/> ให้ AI ช่วยวิเคราะห์และฝึกตอบ โดยยินยอมส่งข้อความข้างต้นไป Google Gemini</label><p className="help-text">หากไม่เลือก จะตรวจคำทักษะและฝึกด้วยคำถาม/เช็กลิสต์พื้นฐาน ผลไม่มีการสุ่มคะแนน</p></div>
+  {error&&<div className="workflow-error" role="alert"><AlertCircle size={18}/>{error}</div>}
+  <div className="workflow-actions"><button className="btn btn-primary" disabled={busy||!resume.trim()||!jd.trim()} onClick={analyze}><Sparkles size={18}/>{analyzing?'กำลังวิเคราะห์…':useAi?'วิเคราะห์ด้วย AI':'ตรวจคำในเรซูเม่'}</button><button className="btn btn-secondary" disabled={busy} onClick={clear}>ล้างข้อมูลในแท็บนี้</button></div>
+  {analysis&&<section className="analysis-results">
+   <ResultNotice result={analysis}/>
+   <div className="score-gauge"><div className="score-circle medium"><span className="score-number gradient-text">{analysis.matching_score??'—'}</span><span className="score-label">{analysis.provider==='local'?'คำทักษะที่พบ (%)':'คะแนนช่วยทบทวน /100'}</span></div><p>{analysis.summary}</p><p className="help-text">ใช้เป็นตัวช่วยทบทวน ไม่ใช่เปอร์เซ็นต์โอกาสได้งานหรือผลคัดเลือก</p></div>
+   <div className="results-grid">{[['จุดที่พบในข้อความ','strengths'],['จุดที่ควรตรวจเพิ่ม','weaknesses'],['คำแนะนำ','suggestions']].map(([label,key])=><div className="glass-card result-card" key={key}><h3>{label}</h3><ul className="result-list">{(analysis[key]||[]).map((x,i)=><li key={i}>{x}</li>)}</ul></div>)}</div>
+   <div className="workflow-note"><strong>คำที่ตรงกัน:</strong> {(analysis.keyword_matches||[]).join(', ')||'ยังไม่พบ'}<br/><strong>คำที่ยังไม่พบ:</strong> {(analysis.missing_keywords||[]).join(', ')||'ไม่มีในรายการที่ตรวจ'}<p className="help-text">เพิ่มเฉพาะทักษะที่มีจริง การไม่พบคำไม่ได้แปลว่าคุณทำสิ่งนั้นไม่ได้</p></div>
+   <div className="workflow-actions"><button className="btn btn-primary" onClick={()=>navigate('/interview')}>ไปฝึกสัมภาษณ์ <ArrowRight size={18}/></button></div>
+  </section>}
+ </div>;
 }
