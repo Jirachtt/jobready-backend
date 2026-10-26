@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import HomePage from "./pages/HomePage";
 import ResumePage from "./pages/ResumePage";
@@ -15,6 +15,7 @@ function App() {
         <Route path="/resume" element={<ResumePage />} />
         <Route path="/interview" element={<InterviewPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="*" element={<main className="page"><h1>ไม่พบหน้านี้</h1><p>ตรวจสอบลิงก์ หรือกลับไปเริ่มใช้งาน JobReady</p><Link className="btn btn-primary" to="/">กลับหน้าแรก</Link></main>} />
       </Routes>
     </BrowserRouter>
   );
